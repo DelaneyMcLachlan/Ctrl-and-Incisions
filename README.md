@@ -12,25 +12,25 @@
 <br/>
 </div>
 
-**Project Title:**
+**Project Title: Enhancement and verification of Python-based software for image-guided surgery**
 >
-> Build a software system that facilitate the management, measurement, and visualization of the outcomes-based assessment and continuous program improvement for the Canadian Engineering Universities.
+> Our goal is to improve and test the existing Python-based software for image-guided surgery so that it is modular, easy to extend, and reliable in real time. We will also investigate methods for reconstructing 3D volumes from sequential 2D ultrasound images utilizing tracking data, and re-implement key C++ components in Python to streamline the system architecture while preserving performance and accuracy.
+>
+>**Faculty Advisor:**  Dr. Elvis Chen, chene@robarts.ca  <br/>
+>**Industry Sponsor:**  
 
-
-<br/>
-<br/>
 <div align="center">
   
-<h2 align="center"> <strong> Team Name here</strong> </h2>
-
-<img src="/env/CourseLogo.png" height="200">
+<h2 align="center"> <strong> Ctrl+Incision</strong> </h2>
+<img src="/env/Ctrl+IncisionLogo.png" height="200">
 
 | Name| Email|
-| :------- | :---: |
-|Name 1	|email1@uwo.ca|
-|Name 2	|email2@uwo.ca|
-|Name 3	|email3@uwo.ca|
-|Name 4	|email4@uwo.ca|
-|Name 5	|email5@uwo.ca|
+| :------- | :--- |
+|Muneeb Asif 	|masif25@uwo.ca|
+|Elise Drouillard 	|edrouil3@uwo.ca|
+|Delaney McLachlan 	|dmclachl@uwo.ca|
+|Janki Patel 	|jpate383@uwo.ca|
+|Hannah Taylor	|htaylo54@uwo.ca|
 
 </div>
+
