@@ -21,6 +21,12 @@ PORT_STYLUS = 0
 PORT_CAMERA = 1
 ERROR_THRESHOLD = 0.8
 
+USE_FAKE_TRACKER = True
+
+if USE_FAKE_TRACKER:
+    from fake_tracker import FakeTracker
+
+
 class QVTKViewer(QtWidgets.QMainWindow, Ui_MainWindow):
     def __init__(self, video_source = 0, parent=None):
         super().__init__()
@@ -98,6 +104,20 @@ class QVTKViewer(QtWidgets.QMainWindow, Ui_MainWindow):
         self.setupVtkObjects()
         self.connectSignalsSlots()
         self.setQtDefaults()
+         # Fake tracker setup (continuous synthetic data)
+        self.fakeTracker = None
+        self.fakeTrackerTimer = None
+
+        
+        if USE_FAKE_TRACKER:
+            # Create and start the background fake tracker thread
+            self.fakeTracker = FakeTracker(update_rate=0.05)
+            self.fakeTracker.start()
+
+            # Create and start the Qt timer that calls updateFakeTrackerInfo
+            self.fakeTrackerTimer = QtCore.QTimer()
+            self.fakeTrackerTimer.timeout.connect(self.updateFakeTrackerInfo)
+            self.fakeTrackerTimer.start(50)  # 50 ms = 20 Hz
 
     def connectSignalsSlots(self):
         """Connects signals from Qt UI components with slot functions defined in this program"""
@@ -232,16 +252,45 @@ class QVTKViewer(QtWidgets.QMainWindow, Ui_MainWindow):
         cv2.imwrite(fname, frame)
 
     def startCaptureSeq(self):
-        """ Starts sequence of capturing simultaneous image and tracking data """
+        """Starts sequence of capturing simultaneous image and tracking data."""
+
         numCaptures = self.numCapturesBox.value()
-        self.captureSequenceDir = QtWidgets.QFileDialog.getExistingDirectory(self, "Choose Capture Output Directory")
+
+        # Let user choose where to save this capture set
+        self.captureSequenceDir = QtWidgets.QFileDialog.getExistingDirectory(
+            self, "Choose Capture Output Directory"
+        )
+        if not self.captureSequenceDir:
+            return  # user cancelled
+
+        # Clear any previous captures in memory
+        self.styTrackingCaptures = []
+        self.camTrackingCaptures = []
+
+        # Run the capture dialog numCaptures times
         for i in range(numCaptures):
-            self.captureMsg.setText(f"Image and Tracking Data Capture #{i+1}\nPress Capture button when ready")
+            self.captureMsg.setText(
+                f"Image and Tracking Data Capture #{i+1}\nPress Capture button when ready"
+            )
             self.singleCaptureButton.disconnect(None, None, None)
-            self.singleCaptureButton.clicked.connect(lambda: self.singleCapture(i))
+            self.singleCaptureButton.clicked.connect(lambda _, idx=i: self.singleCapture(idx))
             self.captureMsg.exec()
-        cio.writeTrackingToXml(f"{self.captureSequenceDir}/stylus_tracking_captures.xml", self.styTrackingCaptures)
-        cio.writeTrackingToXml(f"{self.captureSequenceDir}/camera_tracking_captures.xml", self.camTrackingCaptures)
+
+        # Choose filenames depending on whether we're in fake or real tracker mode
+        if USE_FAKE_TRACKER:
+            sty_filename = "stylus_tracking_captures_fake.xml"
+            cam_filename = "camera_tracking_captures_fake.xml"
+        else:
+            sty_filename = "stylus_tracking_captures.xml"
+            cam_filename = "camera_tracking_captures.xml"
+
+        # Write tracking captures to XML in the chosen folder
+        sty_path = os.path.join(self.captureSequenceDir, sty_filename)
+        cam_path = os.path.join(self.captureSequenceDir, cam_filename)
+
+        cio.writeTrackingToXml(sty_path, self.styTrackingCaptures)
+        cio.writeTrackingToXml(cam_path, self.camTrackingCaptures)
+
         self.captureSequenceIdx = 0
 
     def singleCapture(self, i):
@@ -299,10 +348,34 @@ class QVTKViewer(QtWidgets.QMainWindow, Ui_MainWindow):
         self.captureMsg.accept()
 
     def startTracker(self):
-        """ Starts NDI Aurora (magnetic) or Polaris (optical) tracker and sets up VTK tracked objects"""
+        """Starts or stops tracker (real NDI or fake tracker depending on USE_FAKE_TRACKER)."""
 
         # Toggle ON
         if self.trackerToggle.isChecked():
+
+            # -------- FAKE TRACKER MODE --------
+            if USE_FAKE_TRACKER:
+
+                if self.fakeTracker is None:
+                    self.fakeTracker = FakeTracker(update_rate=0.05)
+
+                self.fakeTracker.start()
+
+                if self.fakeTrackerTimer is None:
+                    self.fakeTrackerTimer = QtCore.QTimer()
+                    self.fakeTrackerTimer.timeout.connect(self.updateFakeTrackerInfo)
+
+                # run at 20 Hz
+                self.fakeTrackerTimer.start(50)
+
+                # Show the tracked sphere
+                self.sphereActor.SetUserTransform(self.tipTransform)
+                self.ren.AddActor(self.sphereActor)
+                self.ren.ResetCamera()
+                self.qvtkwin.GetRenderWindow().Render()
+                return  # IMPORTANT: do NOT fall through to real NDI code
+
+            # -------- REAL NDI TRACKER MODE (original behavior) --------
             if not self.isTrackerInitialized:
                 try:
                     if self.magTrackerRadio.isChecked():
@@ -322,8 +395,8 @@ class QVTKViewer(QtWidgets.QMainWindow, Ui_MainWindow):
 
                     self.sphereActor.SetUserTransform(self.tipTransform)
                     self.trackerTimer.timeout.connect(self.updateTrackerInfo)
-                except:
-                    print("Unable to connect to NDI Tracker device")
+                except Exception as e:
+                    print("Unable to connect to NDI Tracker device:", e)
                     self.isTrackerInitialized = False
                     self.trackerToggle.setChecked(False)
 
@@ -337,6 +410,19 @@ class QVTKViewer(QtWidgets.QMainWindow, Ui_MainWindow):
 
         # Toggle OFF
         else:
+
+            # -------- FAKE TRACKER MODE --------
+            if USE_FAKE_TRACKER:
+                if self.fakeTrackerTimer is not None:
+                    self.fakeTrackerTimer.stop()
+                if self.fakeTracker is not None:
+                    self.fakeTracker.stop()
+
+                self.ren.RemoveActor(self.sphereActor)
+                self.qvtkwin.GetRenderWindow().Render()
+                return  # IMPORTANT: do NOT fall through to real NDI code
+
+            # -------- REAL NDI TRACKER MODE --------
             if self.isTrackerInitialized:
                 self.trackerTimer.stop()
                 self.tracker.stop_tracking()
@@ -344,7 +430,6 @@ class QVTKViewer(QtWidgets.QMainWindow, Ui_MainWindow):
                 self.ren.RemoveActor(self.sphereActor)
                 self.ren.RemoveActor(self.stylusActor)
                 self.qvtkwin.GetRenderWindow().Render()
-                print("Tracking Stopped")
 
     def updateTrackerInfo(self):
         """
@@ -394,6 +479,55 @@ class QVTKViewer(QtWidgets.QMainWindow, Ui_MainWindow):
 
             self.ren.ResetCameraClippingRange()
             self.qvtkwin.GetRenderWindow().Render()
+    def updateFakeTrackerInfo(self):
+        """
+        Uses FakeTracker data to update BOTH stylus and camera positions and GUI.
+        Runs continuously via fakeTrackerTimer.
+        """
+        if not USE_FAKE_TRACKER or self.fakeTracker is None:
+            return
+        
+        if self.qvtkwin is None or not self.qvtkwin.isVisible():
+            return
+
+        rw = self.qvtkwin.GetRenderWindow()
+        if rw is None:
+            return
+
+        # Get latest synthetic point for the stylus
+        point = self.fakeTracker.get_point()
+        x, y, z = point
+
+        # ---- Stylus transform (moves a lot) ----
+        sty_mat = np.eye(4)
+        sty_mat[0:3, 3] = [x, y, z]
+
+        # ---- Camera transform (also moves, but smaller + offset) ----
+        cam_x = x * 0.3 + 50.0   # scaled + shifted
+        cam_y = y * 0.3 - 50.0
+        cam_z = z * 0.2 + 150.0
+
+
+        cam_mat = np.eye(4)
+        cam_mat[0:3, 3] = [cam_x, cam_y, cam_z]
+
+        # Convert to VTK 4x4 format
+        sty_mat_16 = np.reshape(sty_mat, 16)
+        cam_mat_16 = np.reshape(cam_mat, 16)
+
+        # Feed into the same transforms the real tracker would use
+        self.styTransform.SetMatrix(sty_mat_16)
+        self.camTransform.SetMatrix(cam_mat_16)
+
+        # Update tip transform chain
+        self.tipTransform.Update()
+
+        # Update GUI LCDs (this reads both cam & stylus transforms)
+        self.updateTrackingPositions()
+
+        # Redraw VTK view so any actors tied to these transforms move
+        self.ren.ResetCameraClippingRange()
+        self.qvtkwin.GetRenderWindow().Render()
 
     def createTrackerLogo(self):
         """Initializes rectangular icons showing tracked tool status (red = not tracking, green = tracking)"""
@@ -747,6 +881,15 @@ class QVTKViewer(QtWidgets.QMainWindow, Ui_MainWindow):
 
     def closeEvent(self, event: QtGui.QCloseEvent) -> None:
         super().closeEvent(event)
+
+        # Stop fake tracker stuff first (if in fake mode)
+        if USE_FAKE_TRACKER:
+            if self.fakeTrackerTimer is not None:
+                self.fakeTrackerTimer.stop()
+            if self.fakeTracker is not None:
+                self.fakeTracker.stop()
+
+        # Then clean up VTK + overlay
         self.qvtkwin.close()
         self.qvtkwin.Finalize()
         self.overlay.close()
