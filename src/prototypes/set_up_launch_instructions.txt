@@ -1,0 +1,19 @@
+SETUP AND LAUNCH INSTRUCTIONS
+
+To set up this program and launch it, you will need:
+• A code editor or IDE (e.g., VS Code, PyCharm, or any preferred environment)
+• Python installed on your system (Python 3.x recommended)
+• The ability to install Python packages using pip
+
+Once your environment is ready, follow these steps:
+
+1. Clone or download the repo.
+
+2. Install all libraries specified by requirements.txt:
+pip install -r requirements.txt
+
+3. Install scikit-surgeryutils:
+python -m pip install scikit-surgeryutils
+
+4. Run application with run_hand_eye_calibration.py:
+python run_hand_eye_calibration.py
