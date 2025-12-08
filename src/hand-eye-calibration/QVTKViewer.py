@@ -192,7 +192,7 @@ class QVTKViewer(QtWidgets.QMainWindow, Ui_MainWindow):
 
         # Capture and tracking
         self.imgCaptureButton.clicked.connect(self.captureFrame)
-        self.openCamSettingsButton.clicked.connect(self.overlay.open_camera_settings)
+        self.openCamSettingsButton.clicked.connect(self.overlay.camera.open_settings)
         self.startImgTrackerButton.clicked.connect(self.startCaptureSeq)
 
         # Running procedures
