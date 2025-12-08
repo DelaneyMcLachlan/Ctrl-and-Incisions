@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>899</width>
-    <height>931</height>
+    <height>1490</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -32,10 +32,10 @@
        </sizepolicy>
       </property>
       <property name="frameShape">
-       <enum>QFrame::StyledPanel</enum>
+       <enum>QFrame::Shape::StyledPanel</enum>
       </property>
       <property name="frameShadow">
-       <enum>QFrame::Raised</enum>
+       <enum>QFrame::Shadow::Raised</enum>
       </property>
       <layout class="QGridLayout" name="gridLayout_6">
        <item row="4" column="1">
@@ -44,10 +44,10 @@
           <bool>true</bool>
          </property>
          <property name="frameShadow">
-          <enum>QFrame::Plain</enum>
+          <enum>QFrame::Shadow::Plain</enum>
          </property>
          <property name="segmentStyle">
-          <enum>QLCDNumber::Flat</enum>
+          <enum>QLCDNumber::SegmentStyle::Flat</enum>
          </property>
         </widget>
        </item>
@@ -57,7 +57,7 @@
           <string>Camera</string>
          </property>
          <property name="alignment">
-          <set>Qt::AlignCenter</set>
+          <set>Qt::AlignmentFlag::AlignCenter</set>
          </property>
         </widget>
        </item>
@@ -67,10 +67,10 @@
           <bool>true</bool>
          </property>
          <property name="frameShadow">
-          <enum>QFrame::Plain</enum>
+          <enum>QFrame::Shadow::Plain</enum>
          </property>
          <property name="segmentStyle">
-          <enum>QLCDNumber::Flat</enum>
+          <enum>QLCDNumber::SegmentStyle::Flat</enum>
          </property>
         </widget>
        </item>
@@ -80,10 +80,10 @@
           <bool>true</bool>
          </property>
          <property name="frameShadow">
-          <enum>QFrame::Plain</enum>
+          <enum>QFrame::Shadow::Plain</enum>
          </property>
          <property name="segmentStyle">
-          <enum>QLCDNumber::Flat</enum>
+          <enum>QLCDNumber::SegmentStyle::Flat</enum>
          </property>
         </widget>
        </item>
@@ -93,10 +93,10 @@
           <bool>true</bool>
          </property>
          <property name="frameShadow">
-          <enum>QFrame::Plain</enum>
+          <enum>QFrame::Shadow::Plain</enum>
          </property>
          <property name="segmentStyle">
-          <enum>QLCDNumber::Flat</enum>
+          <enum>QLCDNumber::SegmentStyle::Flat</enum>
          </property>
         </widget>
        </item>
@@ -127,10 +127,10 @@
           <bool>true</bool>
          </property>
          <property name="frameShadow">
-          <enum>QFrame::Plain</enum>
+          <enum>QFrame::Shadow::Plain</enum>
          </property>
          <property name="segmentStyle">
-          <enum>QLCDNumber::Flat</enum>
+          <enum>QLCDNumber::SegmentStyle::Flat</enum>
          </property>
         </widget>
        </item>
@@ -140,10 +140,10 @@
           <bool>true</bool>
          </property>
          <property name="frameShadow">
-          <enum>QFrame::Plain</enum>
+          <enum>QFrame::Shadow::Plain</enum>
          </property>
          <property name="segmentStyle">
-          <enum>QLCDNumber::Flat</enum>
+          <enum>QLCDNumber::SegmentStyle::Flat</enum>
          </property>
         </widget>
        </item>
@@ -153,7 +153,7 @@
           <string>Stylus</string>
          </property>
          <property name="alignment">
-          <set>Qt::AlignCenter</set>
+          <set>Qt::AlignmentFlag::AlignCenter</set>
          </property>
         </widget>
        </item>
@@ -163,10 +163,10 @@
           <bool>true</bool>
          </property>
          <property name="frameShadow">
-          <enum>QFrame::Plain</enum>
+          <enum>QFrame::Shadow::Plain</enum>
          </property>
          <property name="segmentStyle">
-          <enum>QLCDNumber::Flat</enum>
+          <enum>QLCDNumber::SegmentStyle::Flat</enum>
          </property>
         </widget>
        </item>
@@ -176,10 +176,10 @@
           <bool>true</bool>
          </property>
          <property name="frameShadow">
-          <enum>QFrame::Plain</enum>
+          <enum>QFrame::Shadow::Plain</enum>
          </property>
          <property name="segmentStyle">
-          <enum>QLCDNumber::Flat</enum>
+          <enum>QLCDNumber::SegmentStyle::Flat</enum>
          </property>
         </widget>
        </item>
@@ -193,10 +193,10 @@
        <item row="7" column="0" colspan="3">
         <spacer name="verticalSpacer_2">
          <property name="orientation">
-          <enum>Qt::Vertical</enum>
+          <enum>Qt::Orientation::Vertical</enum>
          </property>
          <property name="sizeType">
-          <enum>QSizePolicy::Minimum</enum>
+          <enum>QSizePolicy::Policy::Minimum</enum>
          </property>
          <property name="sizeHint" stdset="0">
           <size>
@@ -221,40 +221,139 @@
     </item>
    </layout>
   </widget>
-  <widget class="QMenuBar" name="menubar">
-   <property name="geometry">
-    <rect>
-     <x>0</x>
-     <y>0</y>
-     <width>899</width>
-     <height>21</height>
-    </rect>
+  <widget class="QStatusBar" name="statusbar">
+   <property name="font">
+    <font>
+     <underline>false</underline>
+    </font>
    </property>
-   <widget class="QMenu" name="menuFile">
-    <property name="title">
-     <string>File</string>
-    </property>
-    <addaction name="actionExit"/>
-   </widget>
-   <addaction name="menuFile"/>
   </widget>
-  <widget class="QStatusBar" name="statusbar"/>
   <widget class="QDockWidget" name="dockWidget">
    <property name="focusPolicy">
-    <enum>Qt::NoFocus</enum>
+    <enum>Qt::FocusPolicy::NoFocus</enum>
    </property>
    <attribute name="dockWidgetArea">
     <number>1</number>
    </attribute>
    <widget class="QWidget" name="dockWidgetContents">
     <layout class="QVBoxLayout" name="verticalLayout">
+     <item alignment="Qt::AlignmentFlag::AlignHCenter">
+      <widget class="QLabel" name="label_18">
+       <property name="maximumSize">
+        <size>
+         <width>80</width>
+         <height>80</height>
+        </size>
+       </property>
+       <property name="text">
+        <string/>
+       </property>
+       <property name="pixmap">
+        <pixmap>../../../../../../Downloads/Ctrl+IncisionLogo.png</pixmap>
+       </property>
+       <property name="scaledContents">
+        <bool>true</bool>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignmentFlag::AlignCenter</set>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLabel" name="label_17">
+       <property name="font">
+        <font>
+         <pointsize>11</pointsize>
+         <underline>true</underline>
+        </font>
+       </property>
+       <property name="text">
+        <string>Calibration Workflow</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignmentFlag::AlignCenter</set>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QFrame" name="frame_7">
+       <property name="minimumSize">
+        <size>
+         <width>0</width>
+         <height>50</height>
+        </size>
+       </property>
+       <property name="styleSheet">
+        <string notr="true">QFrame {
+    background-color: #f5f5f5;
+    border: 1px solid #d0d0d0;
+    border-radius: 4px;
+    padding: 4px;
+}
+</string>
+       </property>
+       <property name="frameShape">
+        <enum>QFrame::Shape::StyledPanel</enum>
+       </property>
+       <property name="frameShadow">
+        <enum>QFrame::Shadow::Raised</enum>
+       </property>
+       <layout class="QHBoxLayout" name="horizontalLayout">
+        <property name="spacing">
+         <number>10</number>
+        </property>
+        <property name="leftMargin">
+         <number>5</number>
+        </property>
+        <property name="topMargin">
+         <number>5</number>
+        </property>
+        <property name="rightMargin">
+         <number>5</number>
+        </property>
+        <property name="bottomMargin">
+         <number>5</number>
+        </property>
+        <item>
+         <widget class="QLabel" name="statusIntCal">
+          <property name="text">
+           <string>Pivot: Not applied</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignmentFlag::AlignCenter</set>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="statusPivot">
+          <property name="text">
+           <string>Instrinsic: Not run</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignmentFlag::AlignCenter</set>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="statusHE">
+          <property name="text">
+           <string>Hand-Eye: Not run</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignmentFlag::AlignCenter</set>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+     </item>
      <item>
       <widget class="QFrame" name="imgFrame">
        <property name="frameShape">
-        <enum>QFrame::StyledPanel</enum>
+        <enum>QFrame::Shape::StyledPanel</enum>
        </property>
        <property name="frameShadow">
-        <enum>QFrame::Plain</enum>
+        <enum>QFrame::Shadow::Plain</enum>
        </property>
        <layout class="QGridLayout" name="gridLayout_3">
         <property name="verticalSpacing">
@@ -265,6 +364,10 @@
           <property name="text">
            <string>Capture Image</string>
           </property>
+          <property name="icon">
+           <iconset>
+            <normaloff>../../../../../../Downloads/capture_24dp_1F1F1F_FILL0_wght400_GRAD0_opsz24.png</normaloff>../../../../../../Downloads/capture_24dp_1F1F1F_FILL0_wght400_GRAD0_opsz24.png</iconset>
+          </property>
          </widget>
         </item>
         <item row="1" column="1">
@@ -272,15 +375,24 @@
           <property name="text">
            <string>Open Camera Settings</string>
           </property>
+          <property name="icon">
+           <iconset>
+            <normaloff>../../../../../../Downloads/settings_24dp_1F1F1F_FILL0_wght400_GRAD0_opsz24.png</normaloff>../../../../../../Downloads/settings_24dp_1F1F1F_FILL0_wght400_GRAD0_opsz24.png</iconset>
+          </property>
          </widget>
         </item>
         <item row="0" column="1" colspan="2">
          <widget class="QLabel" name="label_6">
+          <property name="font">
+           <font>
+            <bold>false</bold>
+           </font>
+          </property>
           <property name="text">
-           <string>Camera</string>
+           <string>Step 1 - Camera</string>
           </property>
           <property name="alignment">
-           <set>Qt::AlignCenter</set>
+           <set>Qt::AlignmentFlag::AlignCenter</set>
           </property>
          </widget>
         </item>
@@ -290,25 +402,15 @@
      <item>
       <widget class="QFrame" name="frame_2">
        <property name="frameShape">
-        <enum>QFrame::StyledPanel</enum>
+        <enum>QFrame::Shape::StyledPanel</enum>
        </property>
        <property name="frameShadow">
-        <enum>QFrame::Plain</enum>
+        <enum>QFrame::Shadow::Plain</enum>
        </property>
        <layout class="QGridLayout" name="gridLayout_7">
         <property name="verticalSpacing">
          <number>3</number>
         </property>
-        <item row="6" column="0" colspan="3">
-         <widget class="QPushButton" name="trackerToggle">
-          <property name="text">
-           <string>Start/Stop Tracker</string>
-          </property>
-          <property name="checkable">
-           <bool>true</bool>
-          </property>
-         </widget>
-        </item>
         <item row="1" column="1" colspan="2">
          <widget class="QRadioButton" name="optTrackerRadio">
           <property name="text">
@@ -316,23 +418,34 @@
           </property>
          </widget>
         </item>
-        <item row="3" column="1">
-         <widget class="QLineEdit" name="styROMField"/>
-        </item>
-        <item row="0" column="0" colspan="2">
-         <widget class="QLabel" name="label_8">
-          <property name="text">
-           <string>Tracking</string>
-          </property>
-          <property name="alignment">
-           <set>Qt::AlignCenter</set>
-          </property>
-         </widget>
+        <item row="5" column="1">
+         <widget class="QLineEdit" name="camROMField"/>
         </item>
         <item row="4" column="1">
          <widget class="QLabel" name="label_9">
           <property name="text">
            <string>Camera ROM File:</string>
+          </property>
+         </widget>
+        </item>
+        <item row="9" column="0" colspan="3">
+         <widget class="QPushButton" name="trackerToggle">
+          <property name="text">
+           <string>Start/Stop Tracker</string>
+          </property>
+          <property name="icon">
+           <iconset>
+            <normaloff>../../../../../../Downloads/play_pause_24dp_1F1F1F_FILL0_wght400_GRAD0_opsz24.png</normaloff>../../../../../../Downloads/play_pause_24dp_1F1F1F_FILL0_wght400_GRAD0_opsz24.png</iconset>
+          </property>
+          <property name="checkable">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="0">
+         <widget class="QRadioButton" name="magTrackerRadio">
+          <property name="text">
+           <string>Magnetic (Aurora)</string>
           </property>
          </widget>
         </item>
@@ -343,20 +456,18 @@
           </property>
          </widget>
         </item>
-        <item row="2" column="1">
-         <widget class="QLabel" name="label_4">
-          <property name="text">
-           <string>Stylus ROM File:</string>
+        <item row="0" column="0" colspan="2">
+         <widget class="QLabel" name="label_8">
+          <property name="font">
+           <font>
+            <bold>false</bold>
+           </font>
           </property>
-         </widget>
-        </item>
-        <item row="5" column="1">
-         <widget class="QLineEdit" name="camROMField"/>
-        </item>
-        <item row="1" column="0">
-         <widget class="QRadioButton" name="magTrackerRadio">
           <property name="text">
-           <string>Magnetic (Aurora)</string>
+           <string>Step 2 - Tracking</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignmentFlag::AlignCenter</set>
           </property>
          </widget>
         </item>
@@ -367,16 +478,52 @@
           </property>
          </widget>
         </item>
+        <item row="3" column="1">
+         <widget class="QLineEdit" name="styROMField"/>
+        </item>
+        <item row="2" column="1">
+         <widget class="QLabel" name="label_4">
+          <property name="text">
+           <string>Stylus ROM File:</string>
+          </property>
+         </widget>
+        </item>
+        <item row="7" column="1">
+         <widget class="QComboBox" name="trackerSourceCombo">
+          <item>
+           <property name="text">
+            <string>Phone (Fake/Phyphox)</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>NDI Polaris (Optical)</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>NDI Aurora (Magnetic)</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+        <item row="6" column="1">
+         <widget class="QLabel" name="trackerSourceLabel">
+          <property name="text">
+           <string>Tracker source : </string>
+          </property>
+         </widget>
+        </item>
        </layout>
       </widget>
      </item>
      <item>
       <widget class="QFrame" name="pivotFrame">
        <property name="frameShape">
-        <enum>QFrame::StyledPanel</enum>
+        <enum>QFrame::Shape::StyledPanel</enum>
        </property>
        <property name="frameShadow">
-        <enum>QFrame::Plain</enum>
+        <enum>QFrame::Shadow::Plain</enum>
        </property>
        <layout class="QGridLayout" name="gridLayout">
         <property name="verticalSpacing">
@@ -384,11 +531,16 @@
         </property>
         <item row="0" column="1" colspan="4">
          <widget class="QLabel" name="label_3">
+          <property name="font">
+           <font>
+            <bold>false</bold>
+           </font>
+          </property>
           <property name="text">
-           <string>Pivot Calibration</string>
+           <string>Step 3 - Pivot Calibration</string>
           </property>
           <property name="alignment">
-           <set>Qt::AlignCenter</set>
+           <set>Qt::AlignmentFlag::AlignCenter</set>
           </property>
          </widget>
         </item>
@@ -412,7 +564,7 @@
            <string>- OR -</string>
           </property>
           <property name="alignment">
-           <set>Qt::AlignCenter</set>
+           <set>Qt::AlignmentFlag::AlignCenter</set>
           </property>
          </widget>
         </item>
@@ -422,29 +574,29 @@
         <item row="1" column="1" colspan="3">
          <widget class="QFrame" name="frame_6">
           <property name="frameShape">
-           <enum>QFrame::StyledPanel</enum>
+           <enum>QFrame::Shape::StyledPanel</enum>
           </property>
           <property name="frameShadow">
-           <enum>QFrame::Raised</enum>
+           <enum>QFrame::Shadow::Raised</enum>
           </property>
           <layout class="QGridLayout" name="gridLayout_10">
            <property name="verticalSpacing">
             <number>3</number>
            </property>
+           <item row="1" column="1">
+            <widget class="QLCDNumber" name="pivotLcd">
+             <property name="frameShadow">
+              <enum>QFrame::Shadow::Plain</enum>
+             </property>
+             <property name="segmentStyle">
+              <enum>QLCDNumber::SegmentStyle::Flat</enum>
+             </property>
+            </widget>
+           </item>
            <item row="1" column="0">
             <widget class="QLabel" name="label_5">
              <property name="text">
               <string>RMS (mm)</string>
-             </property>
-            </widget>
-           </item>
-           <item row="1" column="1">
-            <widget class="QLCDNumber" name="pivotLcd">
-             <property name="frameShadow">
-              <enum>QFrame::Plain</enum>
-             </property>
-             <property name="segmentStyle">
-              <enum>QLCDNumber::Flat</enum>
              </property>
             </widget>
            </item>
@@ -455,6 +607,10 @@
              </property>
              <property name="text">
               <string>Start/Stop Pivot Calibration</string>
+             </property>
+             <property name="icon">
+              <iconset>
+               <normaloff>../../../../../../Downloads/adjust_24dp_1F1F1F_FILL0_wght400_GRAD0_opsz24.png</normaloff>../../../../../../Downloads/adjust_24dp_1F1F1F_FILL0_wght400_GRAD0_opsz24.png</iconset>
              </property>
              <property name="checkable">
               <bool>true</bool>
@@ -467,10 +623,10 @@
         <item row="8" column="1" colspan="3">
          <widget class="QFrame" name="frame_5">
           <property name="frameShape">
-           <enum>QFrame::StyledPanel</enum>
+           <enum>QFrame::Shape::StyledPanel</enum>
           </property>
           <property name="frameShadow">
-           <enum>QFrame::Raised</enum>
+           <enum>QFrame::Shadow::Raised</enum>
           </property>
           <layout class="QGridLayout" name="gridLayout_9">
            <property name="verticalSpacing">
@@ -515,10 +671,10 @@
      <item>
       <widget class="QFrame" name="imgTrackingFrame">
        <property name="frameShape">
-        <enum>QFrame::StyledPanel</enum>
+        <enum>QFrame::Shape::StyledPanel</enum>
        </property>
        <property name="frameShadow">
-        <enum>QFrame::Plain</enum>
+        <enum>QFrame::Shadow::Plain</enum>
        </property>
        <layout class="QGridLayout" name="gridLayout_4">
         <property name="verticalSpacing">
@@ -527,7 +683,7 @@
         <item row="4" column="0">
          <widget class="QSpinBox" name="numCapturesBox">
           <property name="inputMethodHints">
-           <set>Qt::ImhDigitsOnly</set>
+           <set>Qt::InputMethodHint::ImhDigitsOnly</set>
           </property>
           <property name="minimum">
            <number>1</number>
@@ -537,7 +693,7 @@
         <item row="4" column="1">
          <widget class="QPushButton" name="startImgTrackerButton">
           <property name="inputMethodHints">
-           <set>Qt::ImhMultiLine</set>
+           <set>Qt::InputMethodHint::ImhMultiLine</set>
           </property>
           <property name="text">
            <string>Start Capture Sequence</string>
@@ -547,10 +703,10 @@
         <item row="0" column="0" colspan="2">
          <widget class="QLabel" name="label_7">
           <property name="text">
-           <string>Image Capture with Tracking Data</string>
+           <string>Step 4 - Image Capture with Tracking Data</string>
           </property>
           <property name="alignment">
-           <set>Qt::AlignCenter</set>
+           <set>Qt::AlignmentFlag::AlignCenter</set>
           </property>
          </widget>
         </item>
@@ -567,10 +723,10 @@
      <item>
       <widget class="QFrame" name="intFrame">
        <property name="frameShape">
-        <enum>QFrame::StyledPanel</enum>
+        <enum>QFrame::Shape::StyledPanel</enum>
        </property>
        <property name="frameShadow">
-        <enum>QFrame::Plain</enum>
+        <enum>QFrame::Shadow::Plain</enum>
        </property>
        <layout class="QGridLayout" name="gridLayout_2">
         <property name="verticalSpacing">
@@ -587,6 +743,10 @@
           <property name="text">
            <string>Run Intrinsic Calibration</string>
           </property>
+          <property name="icon">
+           <iconset>
+            <normaloff>../../../../../../Downloads/play_arrow_24dp_1F1F1F_FILL0_wght400_GRAD0_opsz24.png</normaloff>../../../../../../Downloads/play_arrow_24dp_1F1F1F_FILL0_wght400_GRAD0_opsz24.png</iconset>
+          </property>
          </widget>
         </item>
         <item row="2" column="1">
@@ -599,10 +759,10 @@
         <item row="0" column="0" colspan="2">
          <widget class="QLabel" name="distCalLabel">
           <property name="text">
-           <string>Intrinsic Calibration</string>
+           <string>Step 5 - Intrinsic Calibration</string>
           </property>
           <property name="alignment">
-           <set>Qt::AlignCenter</set>
+           <set>Qt::AlignmentFlag::AlignCenter</set>
           </property>
          </widget>
         </item>
@@ -619,10 +779,10 @@
      <item>
       <widget class="QFrame" name="frame_4">
        <property name="frameShape">
-        <enum>QFrame::StyledPanel</enum>
+        <enum>QFrame::Shape::StyledPanel</enum>
        </property>
        <property name="frameShadow">
-        <enum>QFrame::Plain</enum>
+        <enum>QFrame::Shadow::Plain</enum>
        </property>
        <layout class="QGridLayout" name="gridLayout_11">
         <property name="verticalSpacing">
@@ -682,73 +842,140 @@
         <item row="0" column="0" colspan="2">
          <widget class="QLabel" name="label_21">
           <property name="text">
-           <string>Hand-Eye Calibration</string>
+           <string>Step 6 - Hand-Eye Calibration</string>
+          </property>
+          <property name="pixmap">
+           <pixmap>../../../../../../Downloads/compare_arrows_24dp_1F1F1F_FILL0_wght400_GRAD0_opsz24.png</pixmap>
           </property>
           <property name="alignment">
-           <set>Qt::AlignCenter</set>
+           <set>Qt::AlignmentFlag::AlignCenter</set>
           </property>
          </widget>
         </item>
         <item row="7" column="0" colspan="2">
          <widget class="QFrame" name="frame_3">
           <property name="frameShape">
-           <enum>QFrame::StyledPanel</enum>
+           <enum>QFrame::Shape::StyledPanel</enum>
           </property>
           <property name="frameShadow">
-           <enum>QFrame::Raised</enum>
+           <enum>QFrame::Shadow::Raised</enum>
           </property>
-          <layout class="QGridLayout" name="gridLayout_8">
-           <property name="verticalSpacing">
-            <number>3</number>
+          <widget class="QPushButton" name="beginHEButton">
+           <property name="enabled">
+            <bool>true</bool>
            </property>
-           <item row="0" column="0">
-            <widget class="QPushButton" name="beginHEButton">
-             <property name="enabled">
-              <bool>true</bool>
-             </property>
-             <property name="text">
-              <string>Run Hand-Eye Calibration</string>
-             </property>
-            </widget>
-           </item>
-           <item row="0" column="1">
-            <widget class="QPushButton" name="saveHEButton">
-             <property name="enabled">
-              <bool>false</bool>
-             </property>
-             <property name="text">
-              <string>Save Calibration</string>
-             </property>
-            </widget>
-           </item>
-           <item row="1" column="0">
-            <widget class="QPushButton" name="loadHEButton">
-             <property name="text">
-              <string>Load Saved Calibration</string>
-             </property>
-            </widget>
-           </item>
-           <item row="1" column="1">
-            <widget class="QPushButton" name="testHEToggle">
-             <property name="enabled">
-              <bool>false</bool>
-             </property>
-             <property name="text">
-              <string>Test Active Calibration</string>
-             </property>
-             <property name="checkable">
-              <bool>true</bool>
-             </property>
-            </widget>
-           </item>
-          </layout>
+           <property name="geometry">
+            <rect>
+             <x>11</x>
+             <y>11</y>
+             <width>153</width>
+             <height>26</height>
+            </rect>
+           </property>
+           <property name="text">
+            <string>Run Hand-Eye Calibration</string>
+           </property>
+          </widget>
+          <widget class="QPushButton" name="saveHEButton">
+           <property name="enabled">
+            <bool>false</bool>
+           </property>
+           <property name="geometry">
+            <rect>
+             <x>170</x>
+             <y>11</y>
+             <width>102</width>
+             <height>26</height>
+            </rect>
+           </property>
+           <property name="text">
+            <string>Save Calibration</string>
+           </property>
+          </widget>
+          <widget class="QPushButton" name="loadHEButton">
+           <property name="geometry">
+            <rect>
+             <x>11</x>
+             <y>40</y>
+             <width>151</width>
+             <height>26</height>
+            </rect>
+           </property>
+           <property name="text">
+            <string>Load Saved Calibration</string>
+           </property>
+          </widget>
+          <widget class="QPushButton" name="testHEToggle">
+           <property name="enabled">
+            <bool>false</bool>
+           </property>
+           <property name="geometry">
+            <rect>
+             <x>170</x>
+             <y>40</y>
+             <width>133</width>
+             <height>26</height>
+            </rect>
+           </property>
+           <property name="text">
+            <string>Test Active Calibration</string>
+           </property>
+           <property name="checkable">
+            <bool>true</bool>
+           </property>
+          </widget>
          </widget>
         </item>
        </layout>
       </widget>
      </item>
+     <item>
+      <widget class="QPlainTextEdit" name="logConsole">
+       <property name="minimumSize">
+        <size>
+         <width>0</width>
+         <height>130</height>
+        </size>
+       </property>
+       <property name="font">
+        <font>
+         <family>Consolas</family>
+        </font>
+       </property>
+       <property name="styleSheet">
+        <string notr="true">QPlainTextEdit {
+    background-color: #f8f8f8;
+    border: 1px solid #c0c0c0;
+}
+</string>
+       </property>
+       <property name="readOnly">
+        <bool>true</bool>
+       </property>
+       <property name="plainText">
+        <string>Activity Log:</string>
+       </property>
+      </widget>
+     </item>
     </layout>
    </widget>
+  </widget>
+  <widget class="QMenuBar" name="menubar">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>899</width>
+     <height>33</height>
+    </rect>
+   </property>
+   <widget class="QMenu" name="menuFile">
+    <property name="title">
+     <string>File</string>
+    </property>
+    <addaction name="actionExit"/>
+   </widget>
+   <addaction name="menuFile"/>
   </widget>
   <action name="actionExit">
    <property name="text">
@@ -756,6 +983,9 @@
    </property>
    <property name="shortcut">
     <string>Ctrl+E</string>
+   </property>
+   <property name="iconVisibleInMenu">
+    <bool>true</bool>
    </property>
   </action>
   <zorder>dockWidget</zorder>
