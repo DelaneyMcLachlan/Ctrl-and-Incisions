@@ -4,11 +4,15 @@ import os
 import Stats
 
 import numpy as np
+from pathlib import Path
 import calibration_io as cio
 import HandEyeCalLogic as he
 
 from PySide6 import QtWidgets, QtCore, QtGui
 from vtkMainWindow_ui import Ui_MainWindow
+import vtkMainWindow_ui
+print("USING UI FILE:", vtkMainWindow_ui.__file__)
+
 from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 from sksurgerynditracker.nditracker import NDITracker
 
@@ -31,6 +35,62 @@ class QVTKViewer(QtWidgets.QMainWindow, Ui_MainWindow):
     def __init__(self, video_source = 0, parent=None):
         super().__init__()
         self.setupUi(self)
+
+        # ---------- Fix icons/logos to use local assets ----------
+        base_dir = Path(__file__).resolve().parent
+        assets_dir = base_dir / "assets"
+
+        def make_icon(filename: str) -> QtGui.QIcon:
+            path = assets_dir / filename
+            if path.exists():
+                return QtGui.QIcon(str(path))
+            return QtGui.QIcon()
+
+        def make_pixmap(filename: str) -> QtGui.QPixmap:
+            path = assets_dir / filename
+            if path.exists():
+                return QtGui.QPixmap(str(path))
+            return QtGui.QPixmap()
+
+        # Main logo at top of dock
+        self.label_18.setPixmap(make_pixmap("Ctrl+IncisionLogo.png"))
+        self.label_18.setScaledContents(True)
+
+        # Step 1 – camera buttons
+        self.imgCaptureButton.setIcon(
+            make_icon("capture_24dp_1F1F1F_FILL0_wght400_GRAD0_opsz24.png")
+        )
+        self.openCamSettingsButton.setIcon(
+            make_icon("settings_24dp_1F1F1F_FILL0_wght400_GRAD0_opsz24.png")
+        )
+
+        # Step 2 – tracking toggle
+        self.trackerToggle.setIcon(
+            make_icon("play_pause_24dp_1F1F1F_FILL0_wght400_GRAD0_opsz24.png")
+        )
+
+        # Step 3 – pivot calibration toggle
+        self.pivotToggle.setIcon(
+            make_icon("adjust_24dp_1F1F1F_FILL0_wght400_GRAD0_opsz24.png")
+        )
+
+        # Step 5 – intrinsic calibration run button
+        self.runIntButton.setIcon(
+            make_icon("play_arrow_24dp_1F1F1F_FILL0_wght400_GRAD0_opsz24.png")
+        )
+
+        self.label_21.setScaledContents(True)
+        # ---------- end icon/logo fix ----------
+        
+        # --- Make the left-hand workflow panel scrollable ---
+        self.scrollArea = QtWidgets.QScrollArea(self.dockWidget)
+        self.scrollArea.setWidgetResizable(True)
+        self.scrollArea.setFrameShape(QtWidgets.QFrame.NoFrame)
+
+        # dockWidgetContents was created by setupUi; we reparent it into the scroll area
+        self.scrollArea.setWidget(self.dockWidgetContents)
+        self.dockWidget.setWidget(self.scrollArea)
+        # --- end scroll setup ---
         
         # Video widget setup
         self.overlay = OverlayApp(video_source, self)
@@ -152,6 +212,20 @@ class QVTKViewer(QtWidgets.QMainWindow, Ui_MainWindow):
         self.trackerToggle.toggled.connect(self.startTracker)
         self.pivotToggle.toggled.connect(self.handlePivotToggle)
 
+        # Tracker source selector (UI-level only; FakeTracker remains the active source)
+        if hasattr(self, "trackerSourceCombo"):
+            self.trackerSourceCombo.currentIndexChanged.connect(self.handleTrackerSourceChanged)
+    
+    def handleTrackerSourceChanged(self, index: int) -> None:
+        """
+        Called when the user changes the tracker source combo box.
+        For this sprint, we only log the choice; FakeTracker remains the active source.
+        """
+        if hasattr(self, "trackerSourceCombo"):
+            text = self.trackerSourceCombo.currentText()
+            self.log(f"Tracker source set to: {text}")
+
+
     def setupVtkObjects(self):
         """Initializes and connects VTK objects"""
         self.sphereSource.SetCenter(0, 0, 0)
@@ -178,9 +252,70 @@ class QVTKViewer(QtWidgets.QMainWindow, Ui_MainWindow):
         self.testSphereSource.SetRadius(SPHERE_RADIUS)
         self.testSphereMapper.SetInputConnection(self.testSphereSource.GetOutputPort())
         self.testSphereActor.SetMapper(self.testSphereMapper)
+
+    def log(self, message: str) -> None:
+        """
+        Append a message to the on-screen log (if present) and to the console.
+        """
+        text = str(message)
+
+        # Write to the log pane in the UI if it exists
+        if hasattr(self, "logConsole") and self.logConsole is not None:
+            self.logConsole.appendPlainText(text)
+
+        # Keep existing console behaviour
+        print(text)
+
+    def updateWorkflowStatus(self) -> None:
+        """
+        Update the small status labels and enable/disable the HE button
+        based on the internal flags (_intcal_ok, _pivot_ok, _he_ok).
+        """
+
+        # --- Pivot status = LEFT label (statusIntCal) ---
+        if hasattr(self, "statusIntCal"):
+            if getattr(self, "_pivot_ok", False):
+                self.statusIntCal.setText("Pivot: Applied")
+                self.statusIntCal.setStyleSheet(
+                    "background-color: #2e7d32; color: white;"
+                )
+            else:
+                self.statusIntCal.setText("Pivot: Not applied")
+                self.statusIntCal.setStyleSheet("")
+
+        # --- Intrinsic status = MIDDLE label (statusPivot) ---
+        if hasattr(self, "statusPivot"):
+            if getattr(self, "_intcal_ok", False):
+                self.statusPivot.setText("Intrinsic: Done")
+                self.statusPivot.setStyleSheet(
+                    "background-color: #2e7d32; color: white;"
+                )
+            else:
+                self.statusPivot.setText("Intrinsic: Not run")
+                self.statusPivot.setStyleSheet("")
+
+        # --- Hand-eye status = RIGHT label (unchanged) ---
+        if hasattr(self, "statusHE"):
+            if getattr(self, "_he_ok", False):
+                self.statusHE.setText("Hand-Eye: Solved")
+                self.statusHE.setStyleSheet(
+                    "background-color: #2e7d32; color: white;"
+                )
+            else:
+                self.statusHE.setText("Hand-Eye: Not run")
+                self.statusHE.setStyleSheet("")
+
+        # Enable HE only after pivot + intrinsic are done
+        if hasattr(self, "beginHEButton"):
+            self.beginHEButton.setEnabled(
+                getattr(self, "_intcal_ok", False)
+                and getattr(self, "_pivot_ok", False)
+            )
+
+
     
     def setQtDefaults(self):
-        """Set default file names in fields"""
+        """Set default file names in fields and initialise workflow UI state."""
 
         # Buttons
         self.optTrackerRadio.setChecked(True)
@@ -199,6 +334,19 @@ class QVTKViewer(QtWidgets.QMainWindow, Ui_MainWindow):
         fname = self.findPivotCalField.text()
         self.pivotCalMat = cio.readPivotCalFromXml(fname)
         self.loadedPivotCal.SetMatrix(np.reshape(self.pivotCalMat, 16))
+
+        # Tracker source combo default (for your Phone/Fake vs NDI concept)
+        if hasattr(self, "trackerSourceCombo") and self.trackerSourceCombo.count() > 0:
+            self.trackerSourceCombo.setCurrentIndex(0)
+
+        # Workflow state flags for the status strip
+        self._intcal_ok = False   # Intrinsic calibration done
+        self._pivot_ok = False    # Pivot calibration applied
+        self._he_ok = False       # Hand-eye calibration solved
+
+        # Initialise the status labels and button enable/disable
+        self.updateWorkflowStatus()
+
     
     def captureFrame(self):
         """ Sets capture flag to true so it can be handled by overlay widget class"""
@@ -653,9 +801,21 @@ class QVTKViewer(QtWidgets.QMainWindow, Ui_MainWindow):
         self.loadedPivotCal.SetMatrix(np.reshape(self.pivotCalMat, 16))
 
     def applyPivotCal(self):
-        """Applies pivot calibration (live or from file) to VTK sphere, creates VTK stylus object"""
+        """
+        Applies pivot calibration to the stylus transform and creates the VTK stylus actor.
+        Called either after a live pivot calibration or when loading from an XML file.
+        """
+        # Copy loaded pivot transform into the applied one
         self.appliedPivotCal.SetMatrix(self.loadedPivotCal.GetMatrix())
+
+        # Create the stylus visual in the VTK scene (mode 2 = calibrated stylus)
         self.createStylusActor(2)
+
+        # Update workflow state & UI
+        self._pivot_ok = True
+        self.updateWorkflowStatus()
+        self.log("Pivot calibration applied.")
+
 
     def handlePivotToggle(self):
         """Handles toggle for pivot calibration data collection"""
@@ -719,24 +879,58 @@ class QVTKViewer(QtWidgets.QMainWindow, Ui_MainWindow):
         self.ren.AddActor(self.stylusActor)
 
     def runIntCal(self):
-        """Runs intrinsic calibration on a set of chessboard images using OpenCV"""
+        """Runs intrinsic calibration on a set of chessboard images using OpenCV."""
         dir_str = self.findChessField.text()
-        if len(dir_str) == 0:
+
+        if not dir_str:
             err = QtWidgets.QErrorMessage()
             err.showMessage('Folder holding calibration chessboard images must be provided!')
-        else:
-            dir = os.fsencode(dir_str)
-            chessboardFiles = []
-            for file in os.listdir(dir):
-                fname = os.fsdecode(file)
-                chessboardFiles.append(f"{dir_str}/{fname}")
+            return
 
-            intMat, distCoeffs = he.distortionCalibration(chessboardFiles)
-            print(distCoeffs)
-            fname, d = QtWidgets.QFileDialog.getSaveFileName(self, "Save XML File", QtCore.QDir.currentPath(), "XML Files (*.xml)")
+        if not os.path.isdir(dir_str):
+            err = QtWidgets.QErrorMessage()
+            err.showMessage('Selected chessboard directory does not exist.')
+            return
+
+        # Collect image files
+        image_files = []
+        for name in sorted(os.listdir(dir_str)):
+            lower = name.lower()
+            if lower.endswith('.png') or lower.endswith('.jpg') or lower.endswith('.jpeg') or lower.endswith('.bmp'):
+                image_files.append(os.path.join(dir_str, name))
+
+        if not image_files:
+            err = QtWidgets.QErrorMessage()
+            err.showMessage('No .png/.jpg/.bmp images found in the selected folder.')
+            return
+
+        self.log(f"Running intrinsic calibration on {len(image_files)} images...")
+
+        # Run OpenCV-based intrinsic calibration
+        intMat, distCoeffs = he.distortionCalibration(image_files)
+
+        # Ask where to save the result
+        fname, _ = QtWidgets.QFileDialog.getSaveFileName(
+            self,
+            "Save Intrinsic Calibration",
+            QtCore.QDir.currentPath(),
+            "XML Files (*.xml)",
+        )
+        if fname:
             cio.writeIntCalToXml(fname, intMat, distCoeffs)
+            self.intCalField.setText(fname)
+            self.log(f"Saved intrinsic calibration to {fname}")
+        else:
+            self.log("Intrinsic calibration computed but not saved to file.")
 
-            self.overlay.set_camera_matrix(intMat, distCoeffs)
+        # Tell the overlay about the new camera matrix
+        self.overlay.set_camera_matrix(intMat, distCoeffs)
+
+        # Update workflow state & UI
+        self._intcal_ok = True
+        self.updateWorkflowStatus()
+        self.log("Intrinsic calibration completed.")
+
     
     def saveHECal(self):
         """Writes intrinsic matrix, distortion coefficients, and extrinsic matrix to XML file"""
@@ -813,11 +1007,18 @@ class QVTKViewer(QtWidgets.QMainWindow, Ui_MainWindow):
         self.intMatHE = intMat
         self.distCoeffs = distCoeffs
 
+        # Tell the overlay to use the HE-calibrated matrix
         self.overlay.set_camera_matrix(self.intMatHE, self.distCoeffs)
+
+        # Update workflow state & UI
+        self._he_ok = True
+        self.updateWorkflowStatus()
+        self.log("Hand-eye calibration completed.")
 
         self.testHEToggle.setEnabled(True)
         self.saveHEButton.setEnabled(True)
         cv2.destroyAllWindows()
+
 
     def loadHECal(self):
         """Loads hand-eye calibration (intrinsic matrix, distortion coefficients, and extrinsic matrix) from XML file"""
@@ -830,6 +1031,12 @@ class QVTKViewer(QtWidgets.QMainWindow, Ui_MainWindow):
         print("int mat", self.intMatHE)
         print("dist coeffs", self.distCoeffs)
         print("ext mat", self.extMatHE)
+        # Loading a full HE calibration also implies intrinsic + HE are ready
+        self._intcal_ok = True
+        self._he_ok = True
+        self.updateWorkflowStatus()
+        self.log("Hand-eye calibration loaded from file.")
+
         self.testHEToggle.setEnabled(True)
 
     def handleTestHEToggle(self):
