@@ -6,7 +6,7 @@ import Stats
 import numpy as np
 from pathlib import Path
 import calibration_io as cio
-import HandEyeCalLogic as he
+import hand_eye_cal_logic as he
 
 from PySide6 import QtWidgets, QtCore, QtGui
 from vtkMainWindow_ui import Ui_MainWindow
