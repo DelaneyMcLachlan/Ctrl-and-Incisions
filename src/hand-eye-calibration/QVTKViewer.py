@@ -35,6 +35,16 @@ class QVTKViewer(QtWidgets.QMainWindow, Ui_MainWindow):
     def __init__(self, video_source = 0, parent=None):
         super().__init__()
         self.setupUi(self)
+        
+        he_layout = QtWidgets.QGridLayout(self.frame_3)
+        he_layout.setContentsMargins(8, 8, 8, 8)
+        he_layout.setHorizontalSpacing(10)
+        he_layout.setVerticalSpacing(6)
+
+        he_layout.addWidget(self.beginHEButton, 0, 0)
+        he_layout.addWidget(self.saveHEButton, 0, 1)
+        he_layout.addWidget(self.loadHEButton, 1, 0)
+        he_layout.addWidget(self.testHEToggle, 1, 1)
 
         # ---------- Fix icons/logos to use local assets ----------
         base_dir = Path(__file__).resolve().parent
