@@ -4,7 +4,9 @@ from pathlib import Path
 DB_PATH = Path(__file__).resolve().parent / "ctrl_incision.db"
 
 def get_connection():
-    return sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("PRAGMA foreign_keys = ON;")
+    return conn
 
 def init_db():
     schema = """
@@ -95,7 +97,7 @@ def log_pose(
     rx: float,
     ry: float,
     rz: float,
-    raw_json: str | None = None,
+    raw_json=None,
 ) -> None:
     """
     Insert a single 6-DOF pose sample into the database for a session.

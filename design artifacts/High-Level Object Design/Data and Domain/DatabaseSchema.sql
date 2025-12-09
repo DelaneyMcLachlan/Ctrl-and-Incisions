@@ -1,3 +1,6 @@
+-- Ctrl + Incision Database Schema
+-- Sprint 1: Tracking & 6-DOF Logging
+
 CREATE TABLE tracking_devices (
     device_id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
@@ -27,3 +30,5 @@ CREATE TABLE pose_samples (
     raw_json TEXT,
     FOREIGN KEY (session_id) REFERENCES tracking_sessions(session_id)
 );
+
+-- Future (Sprint 2): imaging & AR tables (patients, procedures, volumes, etc.)
