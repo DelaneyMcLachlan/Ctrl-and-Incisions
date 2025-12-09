@@ -1,3 +1,12 @@
+"""
+SQLite backend for Ctrl + Incision
+
+Sprint 1 scope:
+- Create tables for tracking devices, sessions, and 6-DOF pose samples.
+- Provide minimal helper functions that the prototype can call to 
+  start/end tracking sessions and log pose data for future analysis.
+"""
+
 import sqlite3
 from pathlib import Path
 
@@ -129,6 +138,25 @@ def get_recent_sessions(limit: int = 10):
             LIMIT ?
             """,
             (limit,),
+        )
+        return cur.fetchall()
+    finally:
+        conn.close()
+
+def get_pose_samples(session_id: int):
+    """
+    Return all pose samples for a given tracking session.
+    """
+    conn = get_connection()
+    try:
+        cur = conn.execute(
+            """
+            SELECT timestamp, tx, ty, tz, rx, ry, rz
+            FROM pose_samples
+            WHERE session_id = ?
+            ORDER BY timestamp ASC
+            """,
+            (session_id,),
         )
         return cur.fetchall()
     finally:
