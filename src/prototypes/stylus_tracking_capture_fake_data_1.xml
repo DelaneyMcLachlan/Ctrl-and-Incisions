@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TrackingCaptures>
+    <TrackingCapture>
+        <Position><x>12.4</x><y>3.1</y><z>5.8</z></Position>
+        <Rotation>
+            <MatrixElement>1.0</MatrixElement><MatrixElement>0.0</MatrixElement><MatrixElement>0.0</MatrixElement>
+            <MatrixElement>0.0</MatrixElement><MatrixElement>0.98</MatrixElement><MatrixElement>-0.20</MatrixElement>
+            <MatrixElement>0.0</MatrixElement><MatrixElement>0.20</MatrixElement><MatrixElement>0.98</MatrixElement>
+        </Rotation>
+    </TrackingCapture>
+
+    <TrackingCapture>
+        <Position><x>12.6</x><y>3.2</y><z>6.0</z></Position>
+        <Rotation>
+            <MatrixElement>0.99</MatrixElement><MatrixElement>0.05</MatrixElement><MatrixElement>0.0</MatrixElement>
+            <MatrixElement>-0.05</MatrixElement><MatrixElement>0.99</MatrixElement><MatrixElement>-0.10</MatrixElement>
+            <MatrixElement>0.0</MatrixElement><MatrixElement>0.10</MatrixElement><MatrixElement>0.99</MatrixElement>
+        </Rotation>
+    </TrackingCapture>
+
+    <TrackingCapture>
+        <Position><x>12.9</x><y>3.3</y><z>6.3</z></Position>
+        <Rotation>
+            <MatrixElement>0.97</MatrixElement><MatrixElement>0.15</MatrixElement><MatrixElement>0.0</MatrixElement>
+            <MatrixElement>-0.15</MatrixElement><MatrixElement>0.97</MatrixElement><MatrixElement>-0.18</MatrixElement>
+            <MatrixElement>0.0</MatrixElement><MatrixElement>0.18</MatrixElement><MatrixElement>0.97</MatrixElement>
+        </Rotation>
+    </TrackingCapture>
+</TrackingCaptures>
