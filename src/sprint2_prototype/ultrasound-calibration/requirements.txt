@@ -1,0 +1,5 @@
+vtk
+numpy
+# Note: PLUS ToolKit is typically installed separately (see REQUIRED_FILES_FROM_ADVISOR.md)
+# VolumeReconstructor.exe is part of PLUS ToolKit and should be available in the PlusToolkit bin directory
+
