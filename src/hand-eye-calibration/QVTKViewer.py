@@ -2,6 +2,8 @@ import vtk
 import cv2
 import os
 import Stats
+import csv
+import time
 
 import numpy as np
 from pathlib import Path
@@ -146,6 +148,32 @@ class QVTKViewer(QtWidgets.QMainWindow, Ui_MainWindow):
         self.captureSequenceIdx = 0
         self.captureSequenceDir = ""
 
+        # Continuous capture (Start/Stop)
+        self.contCaptureTimer = QtCore.QTimer()
+        self.contCaptureTimer.timeout.connect(self._contCaptureTick)
+        self.contCaptureActive = False
+        self.contCaptureFrameIdx = 0
+        self.contCaptureCsvFile = None
+        self.contCaptureCsvWriter = None
+        self.contCaptureStartWall = 0.0
+        self.contCaptureStartMono = 0.0
+
+        # Continuous capture buttons (separate from existing workflow)
+        self.startContCaptureButton = QtWidgets.QPushButton("Start Continuous")
+        self.stopContCaptureButton = QtWidgets.QPushButton("Stop Continuous")
+        self.stopContCaptureButton.setEnabled(False)
+
+        try:
+            lay = self.startImgTrackerButton.parentWidget().layout()
+            lay.addWidget(self.startContCaptureButton)
+            lay.addWidget(self.stopContCaptureButton)
+        except Exception:
+            # Fallback: add to the dock contents layout so it's at least visible/usable
+            if self.dockWidgetContents.layout() is not None:
+                self.dockWidgetContents.layout().addWidget(self.startContCaptureButton)
+                self.dockWidgetContents.layout().addWidget(self.stopContCaptureButton)
+
+
         # Pivot calibration setup
         self.minimizer = vtk.vtkAmoebaMinimizer()
         self.pivotCalArray = vtk.vtkDoubleArray()
@@ -204,6 +232,9 @@ class QVTKViewer(QtWidgets.QMainWindow, Ui_MainWindow):
         self.imgCaptureButton.clicked.connect(self.captureFrame)
         self.openCamSettingsButton.clicked.connect(self.overlay.camera.open_settings)
         self.startImgTrackerButton.clicked.connect(self.startCaptureSeq)
+
+        self.startContCaptureButton.clicked.connect(self.startContinuousCapture)
+        self.stopContCaptureButton.clicked.connect(self.stopContinuousCapture)
 
         # Running procedures
         self.runIntButton.clicked.connect(self.runIntCal)
@@ -408,6 +439,17 @@ class QVTKViewer(QtWidgets.QMainWindow, Ui_MainWindow):
         else:
             fname, d = QtWidgets.QFileDialog.getSaveFileName(self, "Save File", QtCore.QDir.currentPath(), "PNG (*.png)")
         cv2.imwrite(fname, frame)
+
+        if self.contCaptureActive and self.contCaptureCsvWriter is not None:
+            t_wall = time.time() - self.contCaptureStartWall
+            t_mono = time.monotonic() - self.contCaptureStartMono
+            self.contCaptureCsvWriter.writerow([
+                self.contCaptureFrameIdx,
+                os.path.basename(fname),
+                f"{t_wall:.6f}",
+                f"{t_mono:.6f}",
+            ])
+            self.contCaptureFrameIdx += 1
 
     def startCaptureSeq(self):
         """Starts sequence of capturing simultaneous image and tracking data."""
@@ -1110,3 +1152,74 @@ class QVTKViewer(QtWidgets.QMainWindow, Ui_MainWindow):
         self.qvtkwin.close()
         self.qvtkwin.Finalize()
         self.overlay.close()
+
+    def startContinuousCapture(self):
+        if self.contCaptureActive:
+            return
+
+        out_dir = QtWidgets.QFileDialog.getExistingDirectory(
+            self, "Choose Continuous Capture Output Directory"
+        )
+        if not out_dir:
+            return
+
+        fps, ok = QtWidgets.QInputDialog.getDouble(
+            self,
+            "Continuous Capture FPS",
+            "Frames per second:",
+            20.0,   # value
+            1.0,    # minValue
+            60.0,   # maxValue
+            1       # decimals
+        )
+
+        if not ok:
+            return
+
+        self.captureSequenceDir = out_dir
+        self.contCaptureActive = True
+        self.contCaptureFrameIdx = 0
+
+        # open CSV
+        csv_path = os.path.join(out_dir, "frames.csv")
+        self.contCaptureCsvFile = open(csv_path, "w", newline="")
+        self.contCaptureCsvWriter = csv.writer(self.contCaptureCsvFile)
+        self.contCaptureCsvWriter.writerow(["frame_idx", "filename", "t_wall_sec", "t_mono_sec"])
+
+        self.contCaptureStartWall = time.time()
+        self.contCaptureStartMono = time.monotonic()
+
+        interval_ms = int(max(1, round(1000.0 / float(fps))))
+        self.contCaptureTimer.start(interval_ms)
+
+        self.startContCaptureButton.setEnabled(False)
+        self.stopContCaptureButton.setEnabled(True)
+        self.log(f"[Continuous Capture] STARTED @ ~{fps} fps -> {out_dir}")
+
+
+    def stopContinuousCapture(self):
+        if not self.contCaptureActive:
+            return
+
+        self.contCaptureTimer.stop()
+        self.contCaptureActive = False
+
+        if self.contCaptureCsvFile is not None:
+            try:
+                self.contCaptureCsvFile.close()
+            except Exception:
+                pass
+        self.contCaptureCsvFile = None
+        self.contCaptureCsvWriter = None
+
+        self.startContCaptureButton.setEnabled(True)
+        self.stopContCaptureButton.setEnabled(False)
+        self.log(f"[Continuous Capture] STOPPED. Saved {self.contCaptureFrameIdx} frames.")
+
+
+    def _contCaptureTick(self):
+        if not self.contCaptureActive:
+            return
+
+        self.captureSequenceIdx = self.contCaptureFrameIdx + 1
+        self.captureFrame()
