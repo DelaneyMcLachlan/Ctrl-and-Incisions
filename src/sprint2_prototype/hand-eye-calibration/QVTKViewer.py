@@ -1094,6 +1094,59 @@ class QVTKViewer(QtWidgets.QMainWindow, Ui_MainWindow):
         else:
             self.showHETest = False
             self.overlay.vtk_overlay_window.get_foreground_renderer().RemoveActor(self.testSphereActor)
+                
+    # ArUco → Stylus tracking integration 
+    
+    def updateArucoPose(self, T):
+        """
+        Receives 4x4 ArUco pose (marker -> camera)
+        Updates stylus transform so VTK + overlay stay in sync
+        """
+        import numpy as np
+
+        T = np.array(T).reshape(4, 4)
+
+        # Update stylus transform
+        self.styTransform.SetMatrix(np.reshape(T, 16))
+
+        # Camera is reference frame (identity)
+        cam_T = np.eye(4)
+        self.camTransform.SetMatrix(np.reshape(cam_T, 16))
+
+        # Update derived transforms
+        self.tipTransform.Update()
+        self.updateTrackingPositions()
+
+        # Force render update
+        self.qvtkwin.GetRenderWindow().Render()
+
+    def getStylusTipInCameraFrame(self, T):
+        """
+        Returns stylus tip (XYZ) in camera coordinates
+        Used for drawing overlay shapes
+        """
+        import numpy as np
+
+        if self.appliedPivotCal is None:
+            return None
+
+        # Extract pivot offset from pivot calibration
+        M = self.appliedPivotCal.GetMatrix()
+        pivot = np.array([
+            M.GetElement(0, 3),
+            M.GetElement(1, 3),
+            M.GetElement(2, 3),
+            1.0
+        ],dtype=float)
+        
+        pivot[:3] /= 1000.0   # mm -> meters
+        pivot[:3] *= -1.0 
+
+        T = np.array(T, dtype = float).reshape(4, 4)
+        tip_cam = T @ pivot
+
+        return tip_cam[:3]
+
 
 
     def closeEvent(self, event: QtGui.QCloseEvent) -> None:
