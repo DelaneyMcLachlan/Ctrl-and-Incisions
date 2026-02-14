@@ -82,5 +82,3 @@ class ArucoStylusTracker:
 
         return int(u), int(v)
 
-
-
