@@ -1,5 +1,7 @@
 import vtk
 import cv2
+import time
+import zlib
 import os
 import Stats
 
@@ -45,6 +47,31 @@ class QVTKViewer(QtWidgets.QMainWindow, Ui_MainWindow):
         he_layout.addWidget(self.saveHEButton, 0, 1)
         he_layout.addWidget(self.loadHEButton, 1, 0)
         he_layout.addWidget(self.testHEToggle, 1, 1)
+
+        # PLUS per frame buffers
+        self.plusFramesGray = []
+        self.plusTimes = []
+        self.plusProbe16 = []
+        self.plusStylus16 = []
+        self.plusRef16 = []
+
+        self.plusActive = False
+        self.plusOutPath = None
+        self.plusT0 = 0.0
+
+        self._plusLastTime = 0.0
+
+        self._plusLastProbe16 = None
+        self._plusLastStylus16 = None
+        self._plusLastRef16 = None
+
+        self.plusProbeValid = []
+        self.plusStylusValid = []
+        self.plusRefValid = []
+
+        self._plusLastProbeValid = False
+        self._plusLastStylusValid = False
+        self._plusLastRefValid = False
 
         # ---------- Fix icons/logos to use local assets ----------
         base_dir = Path(__file__).resolve().parent
@@ -402,6 +429,43 @@ class QVTKViewer(QtWidgets.QMainWindow, Ui_MainWindow):
         intmat, distcoeffs = cio.readIntCalFromXml(fname)
 
     def handleCapture(self, frame):
+        if self.plusActive:
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+            # for no transformation
+            I16 = [
+                1.0, 0.0, 0.0, 0.0,
+                0.0, 1.0, 0.0, 0.0,
+                0.0, 0.0, 1.0, 0.0,
+                0.0, 0.0, 0.0, 1.0
+            ]
+
+            self.plusFramesGray.append(gray)
+            self.plusTimes.append(float(self._plusLastTime))
+
+             # if probe valid
+            if self._plusLastProbeValid:
+                self.plusProbe16.append(self._plusLastProbe16)
+            else:
+                self.plusProbe16.append(I16)
+            self.plusProbeValid.append(self._plusLastProbeValid)
+
+            # if stylus valid
+            if self._plusLastStylusValid:
+                self.plusStylus16.append(self._plusLastStylus16)
+            else:
+                self.plusStylus16.append(I16)
+            self.plusStylusValid.append(self._plusLastStylusValid)
+
+            # if ref valid
+            if self._plusLastRefValid:
+                self.plusRef16.append(self._plusLastRef16)
+            else:
+                self.plusRef16.append(I16)
+            self.plusRefValid.append(self._plusLastRefValid)
+
+            return
+    
         """ Receives screenshot as NumPy array and writes it to specified directory"""
         if self.captureSequenceIdx > 0:
             fname = f"{self.captureSequenceDir}/capture_{self.captureSequenceIdx}.png"
@@ -420,6 +484,21 @@ class QVTKViewer(QtWidgets.QMainWindow, Ui_MainWindow):
         )
         if not self.captureSequenceDir:
             return  # user cancelled
+        
+        # ---- PLUS output file ----
+        default_mha = os.path.join(self.captureSequenceDir, "TrackedSequence_.igs.mha")
+        mha_path, _ = QtWidgets.QFileDialog.getSaveFileName(
+            self,
+            "Save PLUS Sequence (.igs.mha)",
+            default_mha,
+            "PLUS Sequence (*.igs.mha *.mha)"
+        )
+        if not mha_path:
+            return  # user cancelled
+
+        self.startPlusRecording(mha_path)
+        # -------------------------------
+
 
         # Clear any previous captures in memory
         self.styTrackingCaptures = []
@@ -449,12 +528,16 @@ class QVTKViewer(QtWidgets.QMainWindow, Ui_MainWindow):
         cio.writeTrackingToXml(sty_path, self.styTrackingCaptures)
         cio.writeTrackingToXml(cam_path, self.camTrackingCaptures)
 
+        # write PLUS file
+        self.stopPlusRecording()
+
         self.captureSequenceIdx = 0
 
     def singleCapture(self, i):
         """Captures one image screenshot with corresponding tracking data"""
         self.captureSequenceIdx = i + 1
-
+        if self.plusActive:
+            self._snapshot_plus_metadata()
         # Screenshot
         self.captureFrame()
 
@@ -1147,6 +1230,153 @@ class QVTKViewer(QtWidgets.QMainWindow, Ui_MainWindow):
 
         return tip_cam[:3]
 
+    def startPlusRecording(self, out_path: str):
+        """Buffer the frames and transforms for PLUS .igs.mha sequence"""
+        self.plusActive = True
+        self.plusOutPath = out_path
+        self.plusT0 = time.monotonic()
+
+        self.plusFramesGray = []
+        self.plusTimes = []
+        self.plusProbe16 = []
+        self.plusStylus16 = []
+        self.plusRef16 = []
+
+    def stopPlusRecording(self):
+        """Write buffered PLUS .igs.mha sequence"""
+        if not self.plusActive:
+            return
+        self.plusActive = False
+
+        if not self.plusOutPath or len(self.plusFramesGray) == 0:
+            return
+        
+        n = len(self.plusFramesGray)
+        h, w = self.plusFramesGray[0].shape  # grayscale uint8 => 1 byte/pixel
+        raw_size = w * h * n                 # bytes (MET_UCHAR)
+        compress_flag = raw_size > 20_000_000  # > ~20MB
+
+
+        self._write_plus_sequence_mha(
+            self.plusOutPath,
+            self.plusFramesGray,
+            self.plusTimes,
+            self.plusProbe16,
+            self.plusStylus16,
+            self.plusRef16,
+            self.plusProbeValid,
+            self.plusStylusValid,
+            self.plusRefValid,
+            anatomical_orientation="RAI",
+            ultrasound_image_orientation="MFA",
+            compress=compress_flag,
+            compress_level=6,
+        )
+
+    def _snapshot_plus_metadata(self):
+        """Transform and timestamp before requesting a capture frame"""
+        self._plusLastTime = time.monotonic() - self.plusT0 # timestamp
+        
+        def vtk_to_16_if_valid(t):
+            if t is None:
+                return None, False
+
+            m = t.GetMatrix()
+            out = []
+            for r in range(4):
+                for c in range(4):
+                    val = float(m.GetElement(r, c))
+                    if np.isnan(val):
+                        return None, False
+                    out.append(val)
+            return out, True
+
+        self._plusLastProbe16, self._plusLastProbeValid = vtk_to_16_if_valid(self.camTransform)
+        self._plusLastStylus16, self._plusLastStylusValid = vtk_to_16_if_valid(self.styTransform)
+        self._plusLastRef16, self._plusLastRefValid = vtk_to_16_if_valid(self.refTransform)
+        
+    def _write_plus_sequence_mha(
+        self,
+        out_path: str,
+        frames_gray: list,
+        timestamps: list,
+        probe16_list: list,
+        stylus16_list: list,
+        ref16_list: list,
+        probe_valid_list: list,
+        stylus_valid_list: list,
+        ref_valid_list: list,
+        anatomical_orientation="RAI",
+        ultrasound_image_orientation="MFA",
+        compress: bool = False,
+        compress_level: int = 6,
+    ):
+        if not frames_gray:
+            raise RuntimeError("No frames to write.")
+
+        n = len(frames_gray)
+        h, w = frames_gray[0].shape
+
+        vol = np.stack(frames_gray, axis=0).astype(np.uint8)  # (N,H,W)
+        raw_bytes = vol.tobytes(order="C")
+
+        if compress:
+            comp_bytes = zlib.compress(raw_bytes, level=compress_level)
+            data_bytes = comp_bytes
+            compressed_size = len(comp_bytes)
+        else:
+            data_bytes = raw_bytes
+            compressed_size = None
+
+        def mat16_str(m16):
+            return " ".join(f"{float(x):.6g}" for x in m16)
+
+        header = []
+        header.append("ObjectType = Image\n")
+        header.append("NDims = 3\n")
+        header.append(f"AnatomicalOrientation = {anatomical_orientation}\n")
+        header.append("BinaryData = True\n")
+        header.append("BinaryDataByteOrderMSB = False\n")
+        header.append("CenterOfRotation = 0 0 0\n")
+
+        if compress:
+            header.append("CompressedData = True\n")
+            header.append(f"CompressedDataSize = {compressed_size}\n")
+        else:
+            header.append("CompressedData = False\n")
+
+        header.append(f"DimSize = {w} {h} {n}\n")
+        header.append("Kinds = domain domain list\n")
+        header.append("ElementSpacing = 1 1 1\n")
+        header.append("ElementType = MET_UCHAR\n")
+        header.append("Offset = 0 0 0\n")
+        header.append("TransformMatrix = 1 0 0 0 1 0 0 0 1\n")
+        header.append(f"UltrasoundImageOrientation = {ultrasound_image_orientation}\n")
+
+        for i in range(n):
+            idx = f"{i:04d}"
+
+            probe_status = "OK" if probe_valid_list[i] else "INVALID"
+            stylus_status = "OK" if stylus_valid_list[i] else "INVALID"
+            ref_status = "OK" if ref_valid_list[i] else "INVALID"
+
+            header.append(f"Seq_Frame{idx}_ProbeToTrackerTransform = {mat16_str(probe16_list[i])}\n")
+            header.append(f"Seq_Frame{idx}_ProbeToTrackerTransformStatus = {probe_status}\n")
+
+            header.append(f"Seq_Frame{idx}_ReferenceToTrackerTransform = {mat16_str(ref16_list[i])}\n")
+            header.append(f"Seq_Frame{idx}_ReferenceToTrackerTransformStatus = {ref_status}\n")
+
+            header.append(f"Seq_Frame{idx}_StylusToTrackerTransform = {mat16_str(stylus16_list[i])}\n")
+            header.append(f"Seq_Frame{idx}_StylusToTrackerTransformStatus = {stylus_status}\n")
+
+            header.append(f"Seq_Frame{idx}_Timestamp = {float(timestamps[i]):.6f}\n")
+            header.append("Seq_Frame%04d_ImageStatus = OK\n" % i) # alr checked for frame and dims
+
+        header.append("ElementDataFile = LOCAL\n")
+
+        with open(out_path, "wb") as f:
+            f.write("".join(header).encode("ascii"))
+            f.write(data_bytes)
 
 
     def closeEvent(self, event: QtGui.QCloseEvent) -> None:
