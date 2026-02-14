@@ -4,6 +4,9 @@ import time
 import zlib
 import os
 import Stats
+import csv
+import time
+import sys
 
 import numpy as np
 from pathlib import Path
@@ -15,8 +18,12 @@ from vtkMainWindow_ui import Ui_MainWindow
 import vtkMainWindow_ui
 print("USING UI FILE:", vtkMainWindow_ui.__file__)
 
+BASE_DIR = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(BASE_DIR))
+
 from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 from sksurgerynditracker.nditracker import NDITracker
+from database.db import init_db, get_or_create_device, start_capture_session, end_capture_session, add_ultrasound_stream, add_tracking_stream, log_event, create_device_config
 
 from OverlayApp import OverlayApp
 
@@ -173,6 +180,44 @@ class QVTKViewer(QtWidgets.QMainWindow, Ui_MainWindow):
         self.captureSequenceIdx = 0
         self.captureSequenceDir = ""
 
+        # Continuous capture (Start/Stop)
+        self.contCaptureTimer = QtCore.QTimer()
+        self.contCaptureTimer.timeout.connect(self._contCaptureTick)
+        self.contCaptureActive = False
+        self.contCaptureFrameIdx = 0
+        self.contCaptureCsvFile = None
+        self.contCaptureCsvWriter = None
+        self.contCaptureStartWall = 0.0
+        self.contCaptureStartMono = 0.0
+
+        # Continuous capture buttons (separate from existing workflow)
+        self.startContCaptureButton = QtWidgets.QPushButton("Start Continuous")
+        self.stopContCaptureButton = QtWidgets.QPushButton("Stop Continuous")
+        self.stopContCaptureButton.setEnabled(False)
+
+        # --- DB setup ---
+        init_db()
+
+        # Register the current video source as the active device
+        self.db_device_id = get_or_create_device(
+            name="Dev Webcam",
+            type="CAMERA",
+            connection_info="OpenCV VideoCapture"
+        )
+        self.db_config_id = None
+        self.db_capture_session_id = None
+
+        try:
+            lay = self.startImgTrackerButton.parentWidget().layout()
+            lay.addWidget(self.startContCaptureButton)
+            lay.addWidget(self.stopContCaptureButton)
+        except Exception:
+            # Fallback: add to the dock contents layout so it's at least visible/usable
+            if self.dockWidgetContents.layout() is not None:
+                self.dockWidgetContents.layout().addWidget(self.startContCaptureButton)
+                self.dockWidgetContents.layout().addWidget(self.stopContCaptureButton)
+
+
         # Pivot calibration setup
         self.minimizer = vtk.vtkAmoebaMinimizer()
         self.pivotCalArray = vtk.vtkDoubleArray()
@@ -231,6 +276,9 @@ class QVTKViewer(QtWidgets.QMainWindow, Ui_MainWindow):
         self.imgCaptureButton.clicked.connect(self.captureFrame)
         self.openCamSettingsButton.clicked.connect(self.overlay.camera.open_settings)
         self.startImgTrackerButton.clicked.connect(self.startCaptureSeq)
+
+        self.startContCaptureButton.clicked.connect(self.startContinuousCapture)
+        self.stopContCaptureButton.clicked.connect(self.stopContinuousCapture)
 
         # Running procedures
         self.runIntButton.clicked.connect(self.runIntCal)
@@ -472,6 +520,17 @@ class QVTKViewer(QtWidgets.QMainWindow, Ui_MainWindow):
         else:
             fname, d = QtWidgets.QFileDialog.getSaveFileName(self, "Save File", QtCore.QDir.currentPath(), "PNG (*.png)")
         cv2.imwrite(fname, frame)
+
+        if self.contCaptureActive and self.contCaptureCsvWriter is not None:
+            t_wall = time.time() - self.contCaptureStartWall
+            t_mono = time.monotonic() - self.contCaptureStartMono
+            self.contCaptureCsvWriter.writerow([
+                self.contCaptureFrameIdx,
+                os.path.basename(fname),
+                f"{t_wall:.6f}",
+                f"{t_mono:.6f}",
+            ])
+            self.contCaptureFrameIdx += 1
 
     def startCaptureSeq(self):
         """Starts sequence of capturing simultaneous image and tracking data."""
@@ -1393,3 +1452,107 @@ class QVTKViewer(QtWidgets.QMainWindow, Ui_MainWindow):
         self.qvtkwin.close()
         self.qvtkwin.Finalize()
         self.overlay.close()
+
+    def startContinuousCapture(self):
+        if self.contCaptureActive:
+            return
+
+        out_dir = QtWidgets.QFileDialog.getExistingDirectory(
+            self, "Choose Continuous Capture Output Directory"
+        )
+        if not out_dir:
+            return
+
+        fps, ok = QtWidgets.QInputDialog.getDouble(
+            self,
+            "Continuous Capture FPS",
+            "Frames per second:",
+            20.0,   # value
+            1.0,    # minValue
+            60.0,   # maxValue
+            1       # decimals
+        )
+
+        self.db_capture_session_id = start_capture_session(
+            device_id=self.db_device_id,
+            config_id=self.db_config_id,
+            output_dir=out_dir,
+            fps=float(fps),
+            status="RUNNING"
+        )
+        log_event(self.db_capture_session_id, "CAPTURE_START", "INFO", f"out_dir={out_dir}, fps={fps}")
+
+
+        if not ok:
+            return
+
+        self.captureSequenceDir = out_dir
+        self.contCaptureActive = True
+        self.contCaptureFrameIdx = 0
+
+        # open CSV
+        csv_path = os.path.join(out_dir, "frames.csv")
+        self.contCaptureCsvFile = open(csv_path, "w", newline="")
+        self.contCaptureCsvWriter = csv.writer(self.contCaptureCsvFile)
+        self.contCaptureCsvWriter.writerow(["frame_idx", "filename", "t_wall_sec", "t_mono_sec"])
+
+        self.contCaptureStartWall = time.time()
+        self.contCaptureStartMono = time.monotonic()
+
+        interval_ms = int(max(1, round(1000.0 / float(fps))))
+        self.contCaptureTimer.start(interval_ms)
+
+        self.startContCaptureButton.setEnabled(False)
+        self.stopContCaptureButton.setEnabled(True)
+        self.log(f"[Continuous Capture] STARTED @ ~{fps} fps -> {out_dir}")
+
+
+    def stopContinuousCapture(self):
+        if not self.contCaptureActive:
+            return
+
+        self.contCaptureTimer.stop()
+        self.contCaptureActive = False
+
+        if self.contCaptureCsvFile is not None:
+            try:
+                self.contCaptureCsvFile.close()
+            except Exception:
+                pass
+        self.contCaptureCsvFile = None
+        self.contCaptureCsvWriter = None
+
+        self.startContCaptureButton.setEnabled(True)
+        self.stopContCaptureButton.setEnabled(False)
+        self.log(f"[Continuous Capture] STOPPED. Saved {self.contCaptureFrameIdx} frames.")
+
+        if self.db_capture_session_id is not None:
+            log_event(self.db_capture_session_id, "CAPTURE_STOP", "INFO", "Stopped by user")
+            end_capture_session(self.db_capture_session_id, status="COMPLETED")
+            self.db_capture_session_id = None
+
+
+    def loadDeviceConfig(self):
+        fname, _ = QtWidgets.QFileDialog.getOpenFileName(
+            self, "Select Device Config XML", QtCore.QDir.currentPath(), "XML Files (*.xml)"
+        )
+        if not fname:
+            return
+
+        self.db_config_id = create_device_config(
+            device_id=self.db_device_id,
+            config_path=fname,
+            config_type="PLUS_DEVICESET",
+            notes="User-uploaded device configuration"
+        )
+
+        self.log(f"Device config loaded: {fname}")
+        log_event(None, "CONFIG_LOADED", "INFO", f"config_id={self.db_config_id}, path={fname}")
+
+
+    def _contCaptureTick(self):
+        if not self.contCaptureActive:
+            return
+
+        self.captureSequenceIdx = self.contCaptureFrameIdx + 1
+        self.captureFrame()
