@@ -163,7 +163,7 @@ Should display: `C:\PlusToolkit\PlusApp-2.8.0.20190617-Win64\bin`
 Run the configuration check script:
 
 ```powershell
-cd src\sprint1_product\ultrasound-calibration
+cd src\sprint2_product\ultrasound-calibration
 python plus_toolkit_config.py
 ```
 
