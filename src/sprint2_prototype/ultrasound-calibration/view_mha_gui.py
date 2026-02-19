@@ -1,12 +1,18 @@
 import sys
 import os
 from PySide6.QtWidgets import (
-    QApplication, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QListWidget,
-    QFileDialog, QLabel, QTextEdit, QSplitter, QMessageBox, QGridLayout, QSlider, QGroupBox
+    QApplication, QMainWindow, QWidget, QVBoxLayout, QSplitter,
+    QHBoxLayout, QPushButton, QLabel, QFileDialog, QTextEdit,
+    QSlider, QMessageBox, QComboBox, QGroupBox, QListWidget, QGridLayout
 )
 from PySide6.QtCore import Qt, QTimer, QPoint
 from PySide6.QtGui import QPalette
-from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
+import vtkmodules.vtkInteractionWidgets as vtkWidgets
+
+from vtkmodules.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
+from vtkmodules.vtkChartsCore import vtkChartXY, vtkPiecewiseControlPointsItem
+from vtkmodules.vtkViewsContext2D import vtkContextView
+
 import vtk
 
 from view_mha_volume import find_available_mha_files, load_mha_file
@@ -46,10 +52,15 @@ class MHAViewerApp(QWidget):
         self.file_list = QListWidget()
         self.file_list.addItems([os.path.basename(f) for f in self.available_files])
         self.file_list.itemClicked.connect(self.select_sample_file)
+        # self.file_list.setMaximumHeight(150)
+
 
         self.sidebar_info = QTextEdit()
         self.sidebar_info.setReadOnly(True)
-        self.sidebar_info.setMinimumHeight(200)
+        self.sidebar_info.setSizeAdjustPolicy(QTextEdit.AdjustToContents)
+        self.sidebar_info.setMaximumHeight(150)
+        self.sidebar_info.setMinimumHeight(20)
+
 
         # Visualization control sliders
         vis_controls = QGroupBox("Visualization Controls")
@@ -69,7 +80,33 @@ class MHAViewerApp(QWidget):
         vis_layout.addWidget(self.opacity_slider)
         vis_layout.addWidget(QLabel("Brightness"))
         vis_layout.addWidget(self.brightness_slider)
+
+        # --- Robust Opacity Controls ---
+        vis_layout.addWidget(QLabel("<b>Volume Opacity Mapping</b>"))
+        
+        # Slider to cut out background noise (Lower Threshold)
+        vis_layout.addWidget(QLabel("Lower Threshold (Hide Noise):"))
+        self.threshold_slider = QSlider(Qt.Horizontal)
+        self.threshold_slider.setRange(0, 100)
+        self.threshold_slider.setValue(20) # Start with a little noise reduction
+        self.threshold_slider.valueChanged.connect(self.update_opacity_function)
+        vis_layout.addWidget(self.threshold_slider)
+
+        # Slider to control overall peak opacity
+        vis_layout.addWidget(QLabel("Peak Opacity (Density):"))
+        self.peak_slider = QSlider(Qt.Horizontal)
+        self.peak_slider.setRange(0, 100)
+        self.peak_slider.setValue(100)
+        self.peak_slider.valueChanged.connect(self.update_opacity_function)
+        vis_layout.addWidget(self.peak_slider)
         vis_controls.setLayout(vis_layout)
+
+        # --- Inside your sidebar layout code ---
+        self.color_dropdown = QComboBox()
+        self.color_dropdown.addItems(["Grayscale", "Thermal (Red-Yellow)", "Ocean (Blue-Cyan)", "Tissue-Bone"])
+        self.color_dropdown.currentIndexChanged.connect(self.update_color_function)
+        vis_layout.addWidget(QLabel("Color Preset:"))
+        vis_layout.addWidget(self.color_dropdown)
 
         sidebar_layout.addWidget(lbl_title)
         sidebar_layout.addWidget(lbl_subtitle)
@@ -284,9 +321,10 @@ class MHAViewerApp(QWidget):
             if dims[0] == 0 or dims[1] == 0 or dims[2] == 0:
                 raise ValueError("File does not contain volumetric image data.")
 
-            # Clear previous objects
+            # --- 1. Clear previous 3D objects ---
             self.renderer.RemoveAllViewProps()
 
+            # --- 2. Setup Volume Rendering Pipeline ---
             mapper = vtk.vtkSmartVolumeMapper()
             mapper.SetInputData(image_data)
 
@@ -294,28 +332,33 @@ class MHAViewerApp(QWidget):
             self.prop.ShadeOn()
             self.prop.SetInterpolationTypeToLinear()
 
-            opacity = vtk.vtkPiecewiseFunction()
+            # Set up default Color Transfer Function (Grayscale)
             smin, smax = image_data.GetScalarRange()
-            opacity.AddPoint(smin, 0.0)
-            opacity.AddPoint(smax, 1.0)
-            self.prop.SetScalarOpacity(opacity)
+            color_func = vtk.vtkColorTransferFunction()
+            color_func.AddRGBPoint(smin, 0.0, 0.0, 0.0)
+            color_func.AddRGBPoint(smax, 1.0, 1.0, 1.0)
+            self.prop.SetColor(color_func)
 
-            color = vtk.vtkColorTransferFunction()
-            color.AddRGBPoint(smin, 0.0, 0.0, 0.0)
-            color.AddRGBPoint(smax, 1.0, 1.0, 1.0)
-            self.prop.SetColor(color)
-
+            # Create and add volume to renderer
             self.volume = vtk.vtkVolume()
             self.volume.SetMapper(mapper)
             self.volume.SetProperty(self.prop)
             self.renderer.AddVolume(self.volume)
+            
+            # Add helper axes
             self.renderer.AddActor(vtk.vtkAxesActor())
-            self.renderer.ResetCamera()
-            self.render_window.Render()
 
+            # --- 3. Initialize Opacity via Sliders ---
+            # Save the current file path so the slider method can access it
+            self.current_file = file_path
+            
+            # This replaces the entire "Section 4 & 5" from your old code
+            # It builds the PiecewiseFunction based on the current slider positions
+            self.update_opacity_function()
+
+            # --- 4. Update UI Info Text ---
             spacing = image_data.GetSpacing()
             origin = image_data.GetOrigin()
-
             self.sidebar_info.setHtml(
                 f"<b>File:</b> {os.path.basename(file_path)}<br>"
                 f"<b>Dimensions:</b> {dims}<br>"
@@ -325,16 +368,85 @@ class MHAViewerApp(QWidget):
                 f"<b>Type:</b> {'3D Volume' if is_3d else '2D Image'}"
             )
 
+            # Final visual refresh
+            self.renderer.ResetCamera()
+            self.update_color_function() # Ensure colors match the dropdown
+            self.render_window.Render()
+
         except Exception as e:
-            # Gracefully handle unsupported or unreadable file
             self.renderer.RemoveAllViewProps()
             self.render_window.Render()
             QMessageBox.warning(
                 self,
-                "Unsupported File",
-                f"Cannot load this file:\n{file_path}\n\nReason:\n{e}\n\n"
-                "It may not contain image data or uses an unsupported data type.",
+                "Error Loading File",
+                f"Cannot load this file:\n{file_path}\n\nReason:\n{e}"
             )
+
+    def update_opacity_function(self):
+        if not self.prop or not self.current_file:
+            return
+
+        # Get the range of the current data (e.g., 0 to 255)
+        # We need to fetch this from the actual volume data
+        image_data = self.volume.GetMapper().GetInput()
+        smin, smax = image_data.GetScalarRange()
+        s_range = smax - smin
+
+        # Calculate values based on sliders
+        # Threshold: Move the "start" of the ramp
+        thresh_val = smin + (self.threshold_slider.value() / 100.0) * s_range
+        # Peak: How opaque is the brightest point?
+        peak_opacity = self.peak_slider.value() / 100.0
+
+        # Create a new function
+        new_opacity = vtk.vtkPiecewiseFunction()
+        
+        # 1. Everything below threshold is invisible (0.0)
+        new_opacity.AddPoint(smin, 0.0)
+        new_opacity.AddPoint(thresh_val, 0.0)
+        
+        # 2. Ramp up to the peak opacity at the max scalar value
+        new_opacity.AddPoint(smax, peak_opacity)
+
+        # Apply to volume
+        self.prop.SetScalarOpacity(new_opacity)
+        self.render_window.Render()
+
+
+    def update_color_function(self):
+        if not self.prop or not self.volume:
+            return
+
+        image_data = self.volume.GetMapper().GetInput()
+        smin, smax = image_data.GetScalarRange()
+        
+        color_func = vtk.vtkColorTransferFunction()
+        preset = self.color_dropdown.currentText()
+
+        if preset == "Grayscale":
+            color_func.AddRGBPoint(smin, 0.0, 0.0, 0.0)
+            color_func.AddRGBPoint(smax, 1.0, 1.0, 1.0)
+
+        elif preset == "Thermal (Red-Yellow)":
+            # Dark Red -> Bright Orange -> Yellow
+            color_func.AddRGBPoint(smin, 0.2, 0.0, 0.0)
+            color_func.AddRGBPoint(smin + (smax-smin)*0.5, 1.0, 0.5, 0.0)
+            color_func.AddRGBPoint(smax, 1.0, 1.0, 0.0)
+
+        elif preset == "Ocean (Blue-Cyan)":
+            # Deep Blue -> Cyan -> White
+            color_func.AddRGBPoint(smin, 0.0, 0.0, 0.2)
+            color_func.AddRGBPoint(smin + (smax-smin)*0.5, 0.0, 0.8, 1.0)
+            color_func.AddRGBPoint(smax, 1.0, 1.0, 1.0)
+
+        elif preset == "Tissue-Bone":
+            # Purple (Fluid) -> Pink (Tissue) -> White (Bone)
+            color_func.AddRGBPoint(smin, 0.3, 0.0, 0.3)
+            color_func.AddRGBPoint(smin + (smax-smin)*0.4, 0.9, 0.6, 0.6)
+            color_func.AddRGBPoint(smax, 1.0, 1.0, 1.0)
+
+        self.prop.SetColor(color_func)
+        self.render_window.Render()
 
     # ==============================
     # Opacity / Brightness Controls
