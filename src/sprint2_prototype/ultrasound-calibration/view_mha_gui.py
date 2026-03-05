@@ -85,21 +85,45 @@ class MHAViewerApp(QWidget):
         vis_layout.addWidget(QLabel("<b>Volume Opacity Mapping</b>"))
         
         # Slider to cut out background noise (Lower Threshold)
-        vis_layout.addWidget(QLabel("Lower Threshold (Hide Noise):"))
-        self.threshold_slider = QSlider(Qt.Horizontal)
-        self.threshold_slider.setRange(0, 100)
-        self.threshold_slider.setValue(20) # Start with a little noise reduction
-        self.threshold_slider.valueChanged.connect(self.update_opacity_function)
-        vis_layout.addWidget(self.threshold_slider)
+        # vis_layout.addWidget(QLabel("Lower Threshold (Hide Noise):"))
+        # self.threshold_slider = QSlider(Qt.Horizontal)
+        # self.threshold_slider.setRange(0, 100)
+        # self.threshold_slider.setValue(20) # Start with a little noise reduction
+        # self.threshold_slider.valueChanged.connect(self.update_opacity_function)
+        # vis_layout.addWidget(self.threshold_slider)
 
-        # Slider to control overall peak opacity
-        vis_layout.addWidget(QLabel("Peak Opacity (Density):"))
-        self.peak_slider = QSlider(Qt.Horizontal)
-        self.peak_slider.setRange(0, 100)
-        self.peak_slider.setValue(100)
-        self.peak_slider.valueChanged.connect(self.update_opacity_function)
-        vis_layout.addWidget(self.peak_slider)
+        # # Slider to control overall peak opacity
+        # vis_layout.addWidget(QLabel("Peak Opacity (Density):"))
+        # self.peak_slider = QSlider(Qt.Horizontal)
+        # self.peak_slider.setRange(0, 100)
+        # self.peak_slider.setValue(100)
+        # self.peak_slider.valueChanged.connect(self.update_opacity_function)
+        # vis_layout.addWidget(self.peak_slider)
+
         vis_controls.setLayout(vis_layout)
+
+        # ---------------- Opacity Preset Dropdown ----------------
+        self.opacity_preset_label = QLabel("Opacity Preset")
+        vis_layout.addWidget(self.opacity_preset_label)
+
+        self.opacity_preset_combo = QComboBox()
+        self.opacity_preset_combo.addItems([
+            "Ultrasound - Soft",
+            "Ultrasound - High Contrast",
+            "Bright Structures Only",
+            "Hide Background",
+            "CT - Air",
+            "CT - Bone",
+            "CT - Soft Tissue",
+            "CT - Chest",
+            "MRI - Brain",
+            "MRI - Bone"
+        ])
+        vis_layout.addWidget(self.opacity_preset_combo)
+        self.opacity_preset_combo.currentTextChanged.connect(self.apply_opacity_preset)
+        self.opacity_preset_combo.currentTextChanged.connect(self.apply_color_preset)
+
+
 
         # --- Inside your sidebar layout code ---
         self.color_dropdown = QComboBox()
@@ -339,6 +363,8 @@ class MHAViewerApp(QWidget):
             color_func.AddRGBPoint(smax, 1.0, 1.0, 1.0)
             self.prop.SetColor(color_func)
 
+            self.is_hu_volume = (smin < -500 and smax > 1500) 
+
             # Create and add volume to renderer
             self.volume = vtk.vtkVolume()
             self.volume.SetMapper(mapper)
@@ -354,7 +380,7 @@ class MHAViewerApp(QWidget):
             
             # This replaces the entire "Section 4 & 5" from your old code
             # It builds the PiecewiseFunction based on the current slider positions
-            self.update_opacity_function()
+            # self.update_opacity_function()
 
             # --- 4. Update UI Info Text ---
             spacing = image_data.GetSpacing()
@@ -382,34 +408,198 @@ class MHAViewerApp(QWidget):
                 f"Cannot load this file:\n{file_path}\n\nReason:\n{e}"
             )
 
-    def update_opacity_function(self):
-        if not self.prop or not self.current_file:
+    # def update_opacity_function(self):
+    #     if not self.prop or not self.current_file:
+    #         return
+
+    #     # Get the range of the current data (e.g., 0 to 255)
+    #     # We need to fetch this from the actual volume data
+    #     image_data = self.volume.GetMapper().GetInput()
+    #     smin, smax = image_data.GetScalarRange()
+    #     s_range = smax - smin
+
+    #     # Calculate values based on sliders
+    #     # Threshold: Move the "start" of the ramp
+    #     thresh_val = smin + (self.threshold_slider.value() / 100.0) * s_range
+    #     # Peak: How opaque is the brightest point?
+    #     peak_opacity = self.peak_slider.value() / 100.0
+
+    #     # Create a new function
+    #     new_opacity = vtk.vtkPiecewiseFunction()
+        
+    #     # 1. Everything below threshold is invisible (0.0)
+    #     new_opacity.AddPoint(smin, 0.0)
+    #     new_opacity.AddPoint(thresh_val, 0.0)
+        
+    #     # 2. Ramp up to the peak opacity at the max scalar value
+    #     new_opacity.AddPoint(smax, peak_opacity)
+
+    #     # Apply to volume
+    #     self.prop.SetScalarOpacity(new_opacity)
+    #     self.render_window.Render()
+
+    def apply_opacity_preset(self, preset):
+        if not self.prop or not self.volume:
             return
 
-        # Get the range of the current data (e.g., 0 to 255)
-        # We need to fetch this from the actual volume data
-        image_data = self.volume.GetMapper().GetInput()
-        smin, smax = image_data.GetScalarRange()
-        s_range = smax - smin
+        smin, smax = self.volume.GetMapper().GetInput().GetScalarRange()
+        func = vtk.vtkPiecewiseFunction()
 
-        # Calculate values based on sliders
-        # Threshold: Move the "start" of the ramp
-        thresh_val = smin + (self.threshold_slider.value() / 100.0) * s_range
-        # Peak: How opaque is the brightest point?
-        peak_opacity = self.peak_slider.value() / 100.0
+        # Detect HU scan automatically
+        isHU = (smin < -500 and smax > 1500)
 
-        # Create a new function
-        new_opacity = vtk.vtkPiecewiseFunction()
+        # -------------------------
+        # HU-BASED PRESETS (Slicer)
+        # -------------------------
+        if preset == "CT - Bone" and isHU:
+            # SlicerBone: hard bone = +700–3000
+            func.AddPoint(-1024, 0.00)   # air
+            func.AddPoint(  150, 0.00)   # soft tissue cutoff
+            func.AddPoint(  300, 0.10)   # trabecular bone
+            func.AddPoint(  700, 0.40)   # cortical start
+            func.AddPoint( 1200, 0.80)   # dense cortical
+            func.AddPoint( 3000, 1.00)
         
-        # 1. Everything below threshold is invisible (0.0)
-        new_opacity.AddPoint(smin, 0.0)
-        new_opacity.AddPoint(thresh_val, 0.0)
-        
-        # 2. Ramp up to the peak opacity at the max scalar value
-        new_opacity.AddPoint(smax, peak_opacity)
+        elif preset == "CT - Soft Tissue" and isHU:
+            func.AddPoint(-1024, 0.00)
+            func.AddPoint(  -200, 0.00)
+            func.AddPoint(    50, 0.15)
+            func.AddPoint(   300, 0.50)
+            func.AddPoint(  1000, 1.00)
 
-        # Apply to volume
-        self.prop.SetScalarOpacity(new_opacity)
+        elif preset == "CT - Air" and isHU:
+            func.AddPoint(-1024, 1.00)
+            func.AddPoint(  -900, 0.80)
+            func.AddPoint(  -700, 0.50)
+            func.AddPoint(   300, 0.00)
+            func.AddPoint(  1500, 0.00)
+
+        elif preset == "CT - Chest" and isHU:
+            func.AddPoint(-1024, 0.00)
+            func.AddPoint(  -700, 0.20)
+            func.AddPoint(  -100, 0.50)
+            func.AddPoint(   300, 0.70)
+            func.AddPoint(  2000, 1.00)
+
+        elif preset == "MRI - Brain" and isHU:
+            # MRI-like appearance (not true HU)
+            func.AddPoint(smin, 0.00)
+            func.AddPoint(smin + (smax - smin)*0.20, 0.15)
+            func.AddPoint(smin + (smax - smin)*0.50, 0.35)
+            func.AddPoint(smin + (smax - smin)*0.85, 0.80)
+            func.AddPoint(smax, 1.00)
+
+        elif preset == "MRI - Bone" and isHU:
+            func.AddPoint(-1024, 0.00)
+            func.AddPoint(  100, 0.00)
+            func.AddPoint(  400, 0.10)
+            func.AddPoint( 1000, 0.50)
+            func.AddPoint( 2500, 1.00)
+
+        # ----------------------------------------------
+        # Generic presets for NON-HU (0–255 volumes)
+        # ----------------------------------------------
+        elif preset == "Ultrasound - Soft":
+            func.AddPoint(smin, 0.0)
+            func.AddPoint(smin + (smax-smin)*0.3, 0.1)
+            func.AddPoint(smin + (smax-smin)*0.6, 0.3)
+            func.AddPoint(smax, 1.0)
+
+        elif preset == "Ultrasound - High Contrast":
+            func.AddPoint(smin, 0.0)
+            func.AddPoint(smin + (smax-smin)*0.4, 0.0)
+            func.AddPoint(smin + (smax-smin)*0.6, 0.5)
+            func.AddPoint(smax, 1.0)
+
+        elif preset == "Bright Structures Only":
+            func.AddPoint(smin, 0.0)
+            func.AddPoint(smin + (smax-smin)*0.8, 0.0)
+            func.AddPoint(smax, 1.0)
+
+        elif preset == "Hide Background":
+            func.AddPoint(smin, 0.0)
+            func.AddPoint(smin + (smax-smin)*0.2, 0.0)
+            func.AddPoint(smin + (smax-smin)*0.5, 0.3)
+            func.AddPoint(smax, 1.0)
+
+        self.prop.SetScalarOpacity(func)
+        self.render_window.Render()
+
+
+    def apply_color_preset(self, preset):
+        if not self.prop or not self.volume:
+            return
+
+        smin, smax = self.volume.GetMapper().GetInput().GetScalarRange()
+        color = vtk.vtkColorTransferFunction()
+
+        isHU = (smin < -500 and smax > 1500)
+
+        # -------------------------
+        # HU-BASED COLOR PRESETS
+        # -------------------------
+        if preset == "CT - Bone" and isHU:
+            # Light yellow-white bone colors like Slicer
+            color.AddRGBPoint(-1024, 0.00, 0.00, 0.00)
+            color.AddRGBPoint(   300, 0.90, 0.85, 0.75)
+            color.AddRGBPoint(   700, 0.95, 0.92, 0.80)
+            color.AddRGBPoint(  1200, 1.00, 0.98, 0.90)
+            color.AddRGBPoint(  3000, 1.00, 1.00, 1.00)
+
+        elif preset == "CT - Soft Tissue" and isHU:
+            color.AddRGBPoint(-1024, 0.00, 0.00, 0.00)
+            color.AddRGBPoint(  -200, 0.50, 0.30, 0.20)
+            color.AddRGBPoint(    50, 0.80, 0.55, 0.40)
+            color.AddRGBPoint(   300, 0.95, 0.80, 0.70)
+            color.AddRGBPoint(  1500, 1.00, 0.95, 0.90)
+
+        elif preset == "CT - Chest" and isHU:
+            color.AddRGBPoint(-1024, 0.00, 0.00, 0.00)
+            color.AddRGBPoint(  -700, 0.20, 0.40, 0.80)    # blue-ish for air spaces
+            color.AddRGBPoint(  -100, 0.80, 0.60, 0.50)
+            color.AddRGBPoint(   300, 0.95, 0.80, 0.70)
+            color.AddRGBPoint(  2000, 1.00, 0.95, 0.90)
+
+        elif preset == "CT - Air" and isHU:
+            color.AddRGBPoint(smin, 1.00, 1.00, 1.00)
+            color.AddRGBPoint(-900, 0.80, 0.80, 0.80)
+            color.AddRGBPoint(-700, 0.40, 0.40, 0.40)
+            color.AddRGBPoint( 300, 0.00, 0.00, 0.00)
+            color.AddRGBPoint(1500, 0.00, 0.00, 0.00)
+
+        elif preset == "MRI - Brain" and isHU:
+            # MRI-like grayscale
+            color.AddRGBPoint(smin, 0.00, 0.00, 0.00)
+            color.AddRGBPoint(smin + (smax-smin)*0.30, 0.25, 0.25, 0.25)
+            color.AddRGBPoint(smin + (smax-smin)*0.60, 0.55, 0.55, 0.55)
+            color.AddRGBPoint(smax, 1.00, 1.00, 1.00)
+
+        elif preset == "MRI - Bone" and isHU:
+            color.AddRGBPoint(-1024, 0.00, 0.00, 0.00)
+            color.AddRGBPoint(  100, 0.20, 0.20, 0.20)
+            color.AddRGBPoint( 1000, 0.75, 0.75, 0.75)
+            color.AddRGBPoint( 2500, 1.00, 1.00, 1.00)
+
+        # ----------------------------------------------
+        # NON-HU / ULTRASOUND COLOR PRESETS
+        # ----------------------------------------------
+        elif preset == "Ultrasound - Soft":
+            color.AddRGBPoint(smin, 0.00, 0.00, 0.00)
+            color.AddRGBPoint(smax, 1.00, 1.00, 1.00)
+
+        elif preset == "Ultrasound - High Contrast":
+            color.AddRGBPoint(smin, 0.00, 0.00, 0.00)
+            color.AddRGBPoint(smax, 1.00, 1.00, 1.00)
+
+        elif preset == "Bright Structures Only":
+            color.AddRGBPoint(smin, 0.00, 0.00, 0.00)
+            color.AddRGBPoint(smax, 1.00, 1.00, 1.00)
+
+        elif preset == "Hide Background":
+            color.AddRGBPoint(smin, 0.00, 0.00, 0.00)
+            color.AddRGBPoint(smax, 1.00, 1.00, 1.00)
+
+        self.prop.SetColor(color)
         self.render_window.Render()
 
 
