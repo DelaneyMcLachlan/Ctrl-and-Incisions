@@ -1,0 +1,89 @@
+<PlusConfiguration version="2.1">
+
+  <DataCollection StartupDelaySec="5.0">
+    <DeviceSet 
+      Name="PlusServer: NDI Aurora tracker"
+      Description="Broadcasting tool tracking data through OpenIGTLink
+Tracking a single needle.
+The computer needs to be on the same local network as Aurora SCU unit. The needle has to be plugged into the first slot"
+    />
+    <Device
+      Id="TrackerDevice" 
+      Type="AuroraTracker"
+      SerialPort="COM13"
+	  BaudRate="921600"
+      ToolReferenceFrame="Tracker" >
+      <DataSources>
+        <DataSource Type="Tool" Id="Probe" PortName="0" />
+      </DataSources>
+      <OutputChannels>
+        <OutputChannel Id="TrackerStream">
+          <DataSource Id="Probe" />
+        </OutputChannel>
+      </OutputChannels>
+    </Device>
+    <Device
+      Id="CaptureDevice"
+      Type="VirtualCapture"
+      BaseFilename="C:\\Users\\mclac\\Desktop\\Recordings\\three\\ElliseArmFri.igs.mha"
+      EnableCapturingOnStart="TRUE" >
+      <InputChannels>
+        <InputChannel Id="CompleteChannel" />
+      </InputChannels>
+    </Device>
+	
+    <Device Id="VideoDevice"
+            Type="MmfVideo"
+            FrameSize="1920 1080"
+            AcquisitionRate="15"
+			VideoFormat="YUY2"
+			CaptureDeviceId="1">
+      <DataSources>
+        <DataSource Type="Video" Id="Video" BufferSize="300" PortUsImageOrientation="MN"  
+        ClipRectangleOrigin="480 180" ClipRectangleSize="960 700"
+			 /><!--ClipRectangleOrigin="360 140" ClipRectangleSize="1240 800" ClipRectangle fpr live data 1500 900 , ImageType="RGB_Color"-->
+      </DataSources>
+      <OutputChannels>
+        <OutputChannel Id="VideoChannelCrop" VideoDataSourceId="Video" />
+      </OutputChannels>
+    </Device>
+	  <!-- MIXER -->
+  <Device Id="TrackedDevice" Type="VirtualMixer">
+    <InputChannels>
+      <InputChannel Id="TrackerStream"/>
+      <InputChannel Id="VideoChannelCrop"/>
+    </InputChannels>
+    <OutputChannels>
+      <OutputChannel Id="CompleteChannel"/>
+    </OutputChannels>
+  </Device>
+  </DataCollection>
+  
+  <CoordinateDefinitions>
+  <!-- If you now the transform to align the "origin" of the image, with the origin of the probe sensor and at the end with the reference (traker origin) for now it would have the identity matrix-->
+    <Transform From="Image" To="Probe"
+      Matrix="-0.007 0.126 0.008 -107.47
+-0.125 -0.008 0.004 75.361
+0.004 -0.008 0.126 33.162
+0 0 0 1"
+
+       Error="0.0" Date="112317_141120" />
+  </CoordinateDefinitions>
+
+  <PlusOpenIGTLinkServer 
+    MaxNumberOfIgtlMessagesToSend="1" 
+    MaxTimeSpentWithProcessingMs="50" 
+    ListeningPort="18944" 
+    SendValidTransformsOnly="true" 
+    OutputChannelId="CompleteChannel" > 
+    <DefaultClientInfo> 
+      <MessageTypes> 
+        <Message Type="TRANSFORM" />
+      </MessageTypes>
+      <TransformNames> 
+        <Transform Name="ProbeToTracker" />
+      </TransformNames>
+    </DefaultClientInfo>
+  </PlusOpenIGTLinkServer>
+
+</PlusConfiguration>
