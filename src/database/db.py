@@ -9,6 +9,7 @@ Sprint 1 scope:
 
 import sqlite3
 from pathlib import Path
+from typing import Optional
 
 DB_PATH = Path(__file__).resolve().parent / "ctrl_incision.db"
 
@@ -239,7 +240,7 @@ def get_or_create_device(name: str, type: str = "", connection_info: str = "") -
         conn.close()
 
 
-def create_device_config(device_id: int | None, config_path: str, config_type: str = "PLUS_DEVICESET", notes: str = "") -> int:
+def create_device_config(device_id: Optional[int], config_path: str, config_type: str = "PLUS_DEVICESET", notes: str = "") -> int:
     conn = get_connection()
     try:
         cur = conn.execute(
@@ -280,7 +281,7 @@ def end_capture_session(session_id: int, status: str = "COMPLETED") -> None:
         conn.close()
 
 
-def log_event(session_id: int | None, event_type: str, level: str = "INFO", message: str = "") -> None:
+def log_event(session_id: Optional[int], event_type: str, level: str = "INFO", message: str = "") -> None:
     conn = get_connection()
     try:
         conn.execute(
@@ -296,7 +297,7 @@ def add_ultrasound_stream(
     session_id: int,
     file_path: str,
     stream_type: str = "FRAMES",
-    fps: float | None = None,
+    fps: Optional[float] = None,
     resolution: str = "",
 ) -> int:
     conn = get_connection()
@@ -316,7 +317,7 @@ def add_tracking_stream(
     session_id: int,
     file_path: str,
     stream_type: str = "CSV",
-    rate_hz: float | None = None,
+    rate_hz: Optional[float] = None,
 ) -> int:
     conn = get_connection()
     try:
