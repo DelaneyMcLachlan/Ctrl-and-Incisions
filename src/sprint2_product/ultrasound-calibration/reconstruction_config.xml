@@ -1,0 +1,39 @@
+<PlusConfiguration version="2.1">
+
+  <!-- The coordinate frame of the input image slices (must match what was recorded in the .igs.mha) -->
+  <!-- Voxel size of the output volume in mm (X Y Z). Smaller = more detail but slower and larger file.
+       Typical range: 0.2 (fine) to 1.0 (coarse). Don't go below 0.2 as ultrasound won't have that detail -->
+  <!-- LINEAR = smoother result, NEAREST_NEIGHBOR = faster but blockier -->
+  <!-- Optimization FULL = uses all overlapping frames for best quality (slower) -->
+  <!-- FillHoles ON = fills gaps between slices using the HoleFilling method below -->
+  <VolumeReconstruction
+    ImageCoordinateFrame="Image"
+    ReferenceCoordinateFrame="Tracker"
+    OutputSpacing="0.5 0.5 0.5"
+    InterpolationMode="LINEAR"
+    Optimization="FULL"
+    FillHoles="ON" >
+
+    <!-- DISTANCE_WEIGHT_INVERSE = nearby voxels have more influence than distant ones, gives smooth natural fill -->
+    <!-- ExtrapolationEnabled FALSE = only fill holes surrounded by data, safer default -->
+    <HoleFilling
+      ApproximationMethod="DISTANCE_WEIGHT_INVERSE"
+      ExtrapolationEnabled="FALSE" />
+
+  </VolumeReconstruction>
+
+  <!-- Static calibration matrix defining where the image plane sits relative to the Aurora sensor on the probe.
+       This was determined from a prior spatial calibration procedure.
+       Format is a 4x4 homogeneous transformation matrix:
+       [ R R R T ]   R = rotation (3x3)
+       [ R R R T ]   T = translation in mm
+       [ 0 0 0 1 ] -->
+  <CoordinateDefinitions>
+    <Transform From="Image" To="Probe"
+      Matrix="-0.007 0.126 0.008 -107.47
+              -0.125 -0.008 0.004 75.361
+              0.004 -0.008 0.126 33.162
+              0 0 0 1" />
+  </CoordinateDefinitions>
+
+</PlusConfiguration>
