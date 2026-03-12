@@ -15,7 +15,7 @@ from vtkmodules.vtkViewsContext2D import vtkContextView
 
 import vtk
 
-from view_mha_volume import find_available_mha_files, load_mha_file
+from mha_viewer import find_available_mha_files, load_mha_file
 
 
 class MHAViewerApp(QWidget):
