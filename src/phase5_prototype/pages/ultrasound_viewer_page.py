@@ -1,515 +1,728 @@
-"""
-VTK Viewer for .mha Volume Files
-
-This script loads and displays 3D volume data from .mha (MetaImage) files.
-It can display volumes from PlusLibData or any other .mha file.
-
-Usage:
-    python view_mha_volume.py                    # List all available files
-    python view_mha_volume.py <number>          # View file by number (1-N)
-    python view_mha_volume.py <path_to_file.mha> # View specific file
-    
-If no file is specified, it will list all available .mha files with numbers.
-You can then run the script again with a number to view that file.
-"""
-
 import sys
 import os
-from pathlib import Path
+from PySide6.QtWidgets import (
+    QApplication, QMainWindow, QWidget, QVBoxLayout, QSplitter,
+    QHBoxLayout, QPushButton, QLabel, QFileDialog, QTextEdit,
+    QSlider, QMessageBox, QComboBox, QGroupBox, QListWidget, QGridLayout
+)
+from PySide6.QtCore import Qt, QTimer, QPoint
+from PySide6.QtGui import QPalette
+import vtkmodules.vtkInteractionWidgets as vtkWidgets
+
+from vtkmodules.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
+from vtkmodules.vtkChartsCore import vtkChartXY, vtkPiecewiseControlPointsItem
+from vtkmodules.vtkViewsContext2D import vtkContextView
+
 import vtk
-from vtk.util.numpy_support import vtk_to_numpy, numpy_to_vtk
-import numpy as np
 
-# Import PlusToolkit config utility
-try:
-    from plus_toolkit_config import get_pluslibdata_testimages_dir
-except ImportError:
-    # Fallback if module not found
-    def get_pluslibdata_testimages_dir():
-        plus_toolkit_path = os.getenv('PLUS_TOOLKIT_PATH', r"C:\PlusToolkit\PlusApp-2.8.0.20190617-Win64\bin")
-        if os.path.exists(plus_toolkit_path):
-            testimages_dir = os.path.join(plus_toolkit_path, "..", "data", "PlusLibData", "TestImages")
-            if os.path.exists(testimages_dir):
-                return os.path.abspath(testimages_dir)
-        return None
+from mha_viewer import find_available_mha_files, load_mha_file
 
 
-def find_available_mha_files():
-    """Find available .mha files in common locations, prioritizing 3D volumes."""
-    available_files = []
-    reconstructed_files = []  # Prioritize reconstructed volumes
-    
-    # Check PlusLibData TestImages directory (using config utility)
-    pluslibdata_testimages = get_pluslibdata_testimages_dir()
-    
-    if pluslibdata_testimages and os.path.exists(pluslibdata_testimages):
-        for file in os.listdir(pluslibdata_testimages):
-            if file.endswith(('.mha', '.igs.mha')):
-                full_path = os.path.join(pluslibdata_testimages, file)
-                # Prioritize files that are likely 3D volumes
-                if 'reconstructed' in file.lower() or 'volume' in file.lower():
-                    reconstructed_files.append(full_path)
-                else:
-                    available_files.append(full_path)
-    
-    # Check current directory
-    script_dir = Path(__file__).parent
-    elbow_file = script_dir / "ElbowUltrasoundSweep.mha"
-    if elbow_file.exists():
-        available_files.insert(0, str(elbow_file))  # Put local file first
-    
-    # Return reconstructed files first, then others
-    return reconstructed_files + available_files
+class MHAViewerApp(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Tracked Ultrasound Viewer")
+        self.setGeometry(100, 100, 1500, 900)
+
+        # --- State ---
+        self.available_files = find_available_mha_files()
+        self.current_file = None
+        self.volume = None
+        self.prop = None
+
+        # --- Main Layout ---
+        main_layout = QHBoxLayout(self)
+        self.setLayout(main_layout)
+
+        # ==============================
+        # Sidebar setup
+        # ==============================
+        sidebar_layout = QVBoxLayout()
+        sidebar_layout.setAlignment(Qt.AlignTop)
+
+        lbl_title = QLabel("<h2>Tracked Ultrasound Viewer</h2>")
+        lbl_title.setAlignment(Qt.AlignCenter)
+        lbl_subtitle = QLabel("<i>Select file source:</i>")
+        lbl_subtitle.setAlignment(Qt.AlignLeft)
+
+        self.btn_open = QPushButton("📂 Open Local .mha File")
+        self.btn_open.clicked.connect(self.select_file)
+
+        self.lbl_samples = QLabel("<b>Or choose a sample file:</b>")
+        self.file_list = QListWidget()
+        self.file_list.addItems([os.path.basename(f) for f in self.available_files])
+        self.file_list.itemClicked.connect(self.select_sample_file)
+        # self.file_list.setMaximumHeight(150)
 
 
-def load_mha_file(file_path, verbose=True):
-    """Load a .mha file using VTK's MetaImage reader."""
-    if verbose:
-        print(f"Loading .mha file: {file_path}")
-    
-    if not os.path.exists(file_path):
-        raise FileNotFoundError(f"File not found: {file_path}")
-    
-    # Create MetaImage reader
-    reader = vtk.vtkMetaImageReader()
-    reader.SetFileName(file_path)
-    reader.Update()
-    
-    image_data = reader.GetOutput()
-    
-    # Get volume information
-    dims = image_data.GetDimensions()
-    spacing = image_data.GetSpacing()
-    origin = image_data.GetOrigin()
-    scalar_range = image_data.GetScalarRange()
-    
-    if verbose:
-        print(f"  Dimensions: {dims[0]} x {dims[1]} x {dims[2]}")
-        print(f"  Spacing: {spacing[0]:.4f} x {spacing[1]:.4f} x {spacing[2]:.4f}")
-        print(f"  Origin: {origin[0]:.4f}, {origin[1]:.4f}, {origin[2]:.4f}")
-        print(f"  Scalar range: {scalar_range[0]:.2f} to {scalar_range[1]:.2f}")
-    
-    # Check if this is a 3D volume or 2D image
-    is_3d = dims[2] > 1
-    if verbose and not is_3d:
-        print(f"  Note: This appears to be a 2D image (single slice), not a 3D volume")
-    
-    return image_data, is_3d
+        self.sidebar_info = QTextEdit()
+        self.sidebar_info.setReadOnly(True)
+        self.sidebar_info.setSizeAdjustPolicy(QTextEdit.AdjustToContents)
+        self.sidebar_info.setMaximumHeight(150)
+        self.sidebar_info.setMinimumHeight(20)
 
 
-def create_volume_renderer(image_data, is_3d=True):
-    """Create a volume renderer for the image data."""
-    if not is_3d:
-        # For 2D images, use image actor instead
-        image_actor = vtk.vtkImageActor()
-        image_actor.SetInputData(image_data)
-        return image_actor
-    
-    # Create volume mapper
-    volume_mapper = vtk.vtkSmartVolumeMapper()
-    volume_mapper.SetInputData(image_data)
-    
-    # Create volume property
-    volume_property = vtk.vtkVolumeProperty()
-    volume_property.ShadeOn()
-    volume_property.SetInterpolationTypeToLinear()
-    
-    # Create opacity transfer function
-    opacity_transfer_function = vtk.vtkPiecewiseFunction()
-    scalar_range = image_data.GetScalarRange()
-    
-    # Set opacity based on intensity (adjust these values based on your data)
-    # For ultrasound data, typically we want to see brighter regions
-    if scalar_range[1] > 255:
-        # 16-bit data
-        opacity_transfer_function.AddPoint(scalar_range[0], 0.0)
-        opacity_transfer_function.AddPoint(scalar_range[1] * 0.3, 0.0)
-        opacity_transfer_function.AddPoint(scalar_range[1] * 0.5, 0.1)
-        opacity_transfer_function.AddPoint(scalar_range[1] * 0.7, 0.3)
-        opacity_transfer_function.AddPoint(scalar_range[1] * 0.9, 0.6)
-        opacity_transfer_function.AddPoint(scalar_range[1], 1.0)
-    else:
-        # 8-bit data
-        opacity_transfer_function.AddPoint(scalar_range[0], 0.0)
-        opacity_transfer_function.AddPoint(scalar_range[1] * 0.3, 0.0)
-        opacity_transfer_function.AddPoint(scalar_range[1] * 0.5, 0.2)
-        opacity_transfer_function.AddPoint(scalar_range[1] * 0.7, 0.5)
-        opacity_transfer_function.AddPoint(scalar_range[1], 1.0)
-    
-    volume_property.SetScalarOpacity(opacity_transfer_function)
-    
-    # Create color transfer function
-    color_transfer_function = vtk.vtkColorTransferFunction()
-    color_transfer_function.AddRGBPoint(scalar_range[0], 0.0, 0.0, 0.0)  # Black for low values
-    color_transfer_function.AddRGBPoint(scalar_range[1] * 0.5, 0.0, 0.0, 1.0)  # Blue
-    color_transfer_function.AddRGBPoint(scalar_range[1] * 0.7, 0.0, 1.0, 1.0)  # Cyan
-    color_transfer_function.AddRGBPoint(scalar_range[1] * 0.9, 1.0, 1.0, 0.0)  # Yellow
-    color_transfer_function.AddRGBPoint(scalar_range[1], 1.0, 1.0, 1.0)  # White for high values
-    
-    volume_property.SetColor(color_transfer_function)
-    
-    # Create volume
-    volume = vtk.vtkVolume()
-    volume.SetMapper(volume_mapper)
-    volume.SetProperty(volume_property)
-    
-    return volume
+        # Visualization control sliders
+        vis_controls = QGroupBox("Visualization Controls")
+        vis_layout = QVBoxLayout()
 
+        self.opacity_slider = QSlider(Qt.Horizontal)
+        self.opacity_slider.setRange(0, 100)
+        self.opacity_slider.setValue(100)
+        self.opacity_slider.valueChanged.connect(self.adjust_opacity)
 
-def create_slice_viewer(image_data, renderer, orientation='axial'):
-    """Create orthogonal slice viewers for the volume."""
-    dims = image_data.GetDimensions()
-    
-    # Determine slice index based on orientation
-    if orientation == 'axial':
-        slice_idx = dims[2] // 2
-        extractor = vtk.vtkImageExtractComponents()
-        extractor.SetInputData(image_data)
-        extractor.SetComponents(0)
-        extractor.Update()
+        self.brightness_slider = QSlider(Qt.Horizontal)
+        self.brightness_slider.setRange(-50, 50)
+        self.brightness_slider.setValue(0)
+        self.brightness_slider.valueChanged.connect(self.adjust_brightness)
+
+        vis_layout.addWidget(QLabel("Opacity"))
+        vis_layout.addWidget(self.opacity_slider)
+        vis_layout.addWidget(QLabel("Brightness"))
+        vis_layout.addWidget(self.brightness_slider)
+
+        # --- Robust Opacity Controls ---
+        vis_layout.addWidget(QLabel("<b>Volume Opacity Mapping</b>"))
         
-        extract_slice = vtk.vtkExtractVOI()
-        extract_slice.SetInputConnection(extractor.GetOutputPort())
-        extract_slice.SetVOI(0, dims[0]-1, 0, dims[1]-1, slice_idx, slice_idx)
-        extract_slice.Update()
-        
-        slice_data = extract_slice.GetOutput()
-    elif orientation == 'coronal':
-        slice_idx = dims[1] // 2
-        extract_slice = vtk.vtkExtractVOI()
-        extract_slice.SetInputData(image_data)
-        extract_slice.SetVOI(0, dims[0]-1, slice_idx, slice_idx, 0, dims[2]-1)
-        extract_slice.Update()
-        slice_data = extract_slice.GetOutput()
-    else:  # sagittal
-        slice_idx = dims[0] // 2
-        extract_slice = vtk.vtkExtractVOI()
-        extract_slice.SetInputData(image_data)
-        extract_slice.SetVOI(slice_idx, slice_idx, 0, dims[1]-1, 0, dims[2]-1)
-        extract_slice.Update()
-        slice_data = extract_slice.GetOutput()
-    
-    # Create mapper and actor for slice
-    slice_mapper = vtk.vtkImageMapper()
-    slice_mapper.SetInputData(slice_data)
-    slice_mapper.SetColorWindow(255)
-    slice_mapper.SetColorLevel(127.5)
-    
-    slice_actor = vtk.vtkActor2D()
-    slice_actor.SetMapper(slice_mapper)
-    
-    return slice_actor
+        # Slider to cut out background noise (Lower Threshold)
+        # vis_layout.addWidget(QLabel("Lower Threshold (Hide Noise):"))
+        # self.threshold_slider = QSlider(Qt.Horizontal)
+        # self.threshold_slider.setRange(0, 100)
+        # self.threshold_slider.setValue(20) # Start with a little noise reduction
+        # self.threshold_slider.valueChanged.connect(self.update_opacity_function)
+        # vis_layout.addWidget(self.threshold_slider)
+
+        # # Slider to control overall peak opacity
+        # vis_layout.addWidget(QLabel("Peak Opacity (Density):"))
+        # self.peak_slider = QSlider(Qt.Horizontal)
+        # self.peak_slider.setRange(0, 100)
+        # self.peak_slider.setValue(100)
+        # self.peak_slider.valueChanged.connect(self.update_opacity_function)
+        # vis_layout.addWidget(self.peak_slider)
+
+        vis_controls.setLayout(vis_layout)
+
+        # ---------------- Opacity Preset Dropdown ----------------
+        self.opacity_preset_label = QLabel("Opacity Preset")
+        vis_layout.addWidget(self.opacity_preset_label)
+
+        self.opacity_preset_combo = QComboBox()
+        self.opacity_preset_combo.addItems([
+            "Ultrasound - Soft",
+            "Ultrasound - High Contrast",
+            "Bright Structures Only",
+            "Hide Background",
+            "CT - Air",
+            "CT - Bone",
+            "CT - Soft Tissue",
+            "CT - Chest",
+            "MRI - Brain",
+            "MRI - Bone"
+        ])
+        vis_layout.addWidget(self.opacity_preset_combo)
+        self.opacity_preset_combo.currentTextChanged.connect(self.apply_opacity_preset)
+        self.opacity_preset_combo.currentTextChanged.connect(self.apply_color_preset)
 
 
-class FileScrollerInteractorStyle(vtk.vtkInteractorStyleTrackballCamera):
-    """Custom interactor style that allows scrolling through files with keyboard."""
-    
-    def __init__(self, available_files, current_index, renderer, render_window):
-        # Call parent constructor
-        vtk.vtkInteractorStyleTrackballCamera.__init__(self)
-        
-        self.available_files = available_files
-        self.current_index = current_index
-        self.renderer = renderer
-        self.render_window = render_window
-        self.current_volume = None
-        self.current_actor = None
-        self.current_axes = None
-        
-        # Add observer for keypress events
-        self.AddObserver("KeyPressEvent", self.key_press_event)
-    
-    def key_press_event(self, obj, event):
-        """Handle keypress events for file navigation."""
-        key = self.GetInteractor().GetKeySym()
-        
-        if key == 'Right' or key == 'Down' or key == 'n':  # Next file
-            self.load_next_file()
-        elif key == 'Left' or key == 'Up' or key == 'p':  # Previous file
-            self.load_previous_file()
-        elif key == 'Home':  # First file
-            self.current_index = 0
-            self.load_file_at_index()
-        elif key == 'End':  # Last file
-            self.current_index = len(self.available_files) - 1
-            self.load_file_at_index()
-        elif key == 'r':  # Reset camera
-            self.renderer.ResetCamera()
-            self.render_window.Render()
-        elif key == 'q' or key == 'Escape':  # Quit
-            self.GetInteractor().ExitCallback()
-    
-    def load_file_at_index(self):
-        """Load and display the file at the current index."""
-        if self.current_index < 0 or self.current_index >= len(self.available_files):
-            return
-        
-        file_path = self.available_files[self.current_index]
-        file_name = os.path.basename(file_path)
-        
-        try:
-            # Clear current actors/volumes
-            self.renderer.RemoveAllViewProps()
-            
-            # Load new file (suppress verbose output for faster scrolling)
-            print(f"[{self.current_index + 1}/{len(self.available_files)}] Loading: {file_name}...", end=" ", flush=True)
-            image_data, is_3d = load_mha_file(file_path, verbose=False)
-            print("Done!")
-            
-            # Create new volume/actor
-            volume_or_actor = create_volume_renderer(image_data, is_3d)
-            
-            if is_3d:
-                self.renderer.AddVolume(volume_or_actor)
-                self.current_volume = volume_or_actor
-                self.current_actor = None
-            else:
-                self.renderer.AddActor(volume_or_actor)
-                self.current_actor = volume_or_actor
-                self.current_volume = None
-            
-            # Add axes for reference
-            axes = vtk.vtkAxesActor()
-            axes.SetXAxisLabelText("X")
-            axes.SetYAxisLabelText("Y")
-            axes.SetZAxisLabelText("Z")
-            dims = image_data.GetDimensions()
-            max_dim = max(dims[0], dims[1], dims[2])
-            axes_length = max_dim * 0.1
-            axes.SetTotalLength(axes_length, axes_length, axes_length)
-            self.renderer.AddActor(axes)
-            self.current_axes = axes
-            
-            # Update window title
-            viewer_type = "3D Volume" if is_3d else "2D Image"
-            self.render_window.SetWindowName(
-                f"{viewer_type} Viewer - [{self.current_index + 1}/{len(self.available_files)}] {file_name}"
-            )
-            
-            # Reset camera and render
-            self.renderer.ResetCamera()
-            self.render_window.Render()
-            
-            print(f"\n[{self.current_index + 1}/{len(self.available_files)}] Loaded: {file_name}")
-            
-        except Exception as e:
-            print(f"Error loading file {file_path}: {e}")
-            import traceback
-            traceback.print_exc()
-    
-    def load_next_file(self):
-        """Load the next file in the list."""
-        if self.current_index < len(self.available_files) - 1:
-            self.current_index += 1
-            self.load_file_at_index()
-        else:
-            print("Already at last file. Press 'Home' to go to first file.")
-    
-    def load_previous_file(self):
-        """Load the previous file in the list."""
-        if self.current_index > 0:
-            self.current_index -= 1
-            self.load_file_at_index()
-        else:
-            print("Already at first file. Press 'End' to go to last file.")
 
+        # --- Inside your sidebar layout code ---
+        self.color_dropdown = QComboBox()
+        self.color_dropdown.addItems(["Grayscale", "Thermal (Red-Yellow)", "Ocean (Blue-Cyan)", "Tissue-Bone"])
+        self.color_dropdown.currentIndexChanged.connect(self.update_color_function)
+        vis_layout.addWidget(QLabel("Color Preset:"))
+        vis_layout.addWidget(self.color_dropdown)
 
-def create_3d_viewer(image_data, is_3d=True, available_files=None, current_index=0):
-    """Create a 3D viewer window with volume rendering and file scrolling capability."""
-    # Create renderer
-    renderer = vtk.vtkRenderer()
-    renderer.SetBackground(0.1, 0.1, 0.2)  # Dark blue background
-    
-    # Create volume renderer or image actor
-    volume_or_actor = create_volume_renderer(image_data, is_3d)
-    
-    if is_3d:
-        renderer.AddVolume(volume_or_actor)
-    else:
-        renderer.AddActor(volume_or_actor)
-    
-    # Add axes for reference
-    axes = vtk.vtkAxesActor()
-    axes.SetXAxisLabelText("X")
-    axes.SetYAxisLabelText("Y")
-    axes.SetZAxisLabelText("Z")
-    dims = image_data.GetDimensions()
-    # Scale axes appropriately
-    max_dim = max(dims[0], dims[1], dims[2])
-    axes_length = max_dim * 0.1
-    axes.SetTotalLength(axes_length, axes_length, axes_length)
-    renderer.AddActor(axes)
-    
-    # Create render window
-    render_window = vtk.vtkRenderWindow()
-    render_window.AddRenderer(renderer)
-    render_window.SetSize(1200, 800)
-    
-    # Set initial window title
-    viewer_type = "3D Volume" if is_3d else "2D Image"
-    if available_files:
-        file_name = os.path.basename(available_files[current_index])
-        render_window.SetWindowName(
-            f"{viewer_type} Viewer - [{current_index + 1}/{len(available_files)}] {file_name}"
-        )
-    else:
-        render_window.SetWindowName(f"{viewer_type} Viewer - .mha File")
-    
-    # Create interactor
-    interactor = vtk.vtkRenderWindowInteractor()
-    interactor.SetRenderWindow(render_window)
-    
-    # Add style for interaction (with file scrolling if files are available)
-    if available_files and len(available_files) > 1:
-        style = FileScrollerInteractorStyle(available_files, current_index, renderer, render_window)
-        interactor.SetInteractorStyle(style)
-    else:
+        sidebar_layout.addWidget(lbl_title)
+        sidebar_layout.addWidget(lbl_subtitle)
+        sidebar_layout.addWidget(self.btn_open)
+        sidebar_layout.addSpacing(20)
+        sidebar_layout.addWidget(self.lbl_samples)
+        sidebar_layout.addWidget(self.file_list)
+        sidebar_layout.addSpacing(15)
+        sidebar_layout.addWidget(QLabel("<b>File Details:</b>"))
+        sidebar_layout.addWidget(self.sidebar_info)
+        sidebar_layout.addSpacing(10)
+        sidebar_layout.addWidget(vis_controls)
+
+        sidebar_widget = QWidget()
+        sidebar_widget.setLayout(sidebar_layout)
+
+        # ==============================
+        # VTK Viewer Area
+        # ==============================
+        self.vtk_widget = QVTKRenderWindowInteractor(self)
+        self.render_window = self.vtk_widget.GetRenderWindow()
+        self.renderer = vtk.vtkRenderer()
+        self.renderer.SetBackground(0.1, 0.1, 0.15)
+        self.render_window.AddRenderer(self.renderer)
+
+        # Floating control widget (anchored bottom-left)
+        self.control_overlay = QWidget(self.vtk_widget)
+        self._setup_control_panel()
+
+        viewer_layout = QVBoxLayout()
+        viewer_layout.addWidget(self.vtk_widget)
+        viewer_widget = QWidget()
+        viewer_widget.setLayout(viewer_layout)
+
+        splitter = QSplitter(Qt.Horizontal)
+        splitter.addWidget(sidebar_widget)
+        splitter.addWidget(viewer_widget)
+        splitter.setSizes([380, 1120])
+        main_layout.addWidget(splitter)
+
+        # Handle resizing to keep overlay anchored bottom-left
+        self.vtk_widget.resizeEvent = self._on_vtk_resized
+
+        # Prepare interactor
+        self.interactor = self.vtk_widget
+        self.interactor.Initialize()
+        self.interactor.Start()
+
+        # Setting a slower camera interaction style
         style = vtk.vtkInteractorStyleTrackballCamera()
-        interactor.SetInteractorStyle(style)
-    
-    # Reset camera to show entire volume
-    renderer.ResetCamera()
-    
-    return render_window, interactor
+        if hasattr(style, "SetMotionFactor"):
+            style.SetMotionFactor(7)
+        if hasattr(style, "SetRotationFactor"):
+            style.SetRotationFactor(7)
+        self.interactor.SetInteractorStyle(style)
 
 
-def list_available_files(available_files):
-    """List all available files with numbers."""
-    if not available_files:
-        print("No .mha files found in common locations.")
-        print("\nPlease specify a file path:")
-        print("  python view_mha_volume.py <path_to_file.mha>")
-        print("\nOr place a .mha file in one of these locations:")
-        print("  - PlusLibData/TestImages directory")
-        print("  - Current directory (ultrasound-calibration)")
-        return
-    
-    print(f"\nFound {len(available_files)} available .mha file(s):")
-    print("=" * 80)
-    
-    # Group files by directory for better organization
-    files_by_dir = {}
-    for f in available_files:
-        dir_path = os.path.dirname(f)
-        if dir_path not in files_by_dir:
-            files_by_dir[dir_path] = []
-        files_by_dir[dir_path].append(f)
-    
-    file_num = 1
-    for dir_path, files in files_by_dir.items():
-        # Show directory name (shortened if too long)
-        if len(dir_path) > 70:
-            display_dir = "..." + dir_path[-67:]
+        if not self.available_files:
+            self.sidebar_info.setText("⚠️ No PlusToolKit sample files found.\nClick 'Open Local .mha File' to select one manually.")
         else:
-            display_dir = dir_path
-        print(f"\n[{display_dir}]")
+            self.sidebar_info.setText(f"Found {len(self.available_files)} sample file(s).\nSelect one from the list to view.")
+
+    # ==============================
+    # Floating Control Panel Setup
+    # ==============================
+    def _setup_control_panel(self):
+        self.overlay_size = QPoint(240, 250)
+        self.control_overlay.resize(self.overlay_size.x(), self.overlay_size.y())
+
+        app_palette = QApplication.palette()
+        is_dark = app_palette.color(QPalette.Window).value() < 128
+
+        font_color = "#FFFFFF" if is_dark else "#202020"
+        panel_bg = "rgba(40,40,40,180)" if is_dark else "rgba(255,255,255,230)"
+        button_bg = "#555555" if is_dark else "#f4f4f4"
+        button_hover = "#707070" if is_dark else "#e0e0e0"
+        button_pressed = "#808080" if is_dark else "#c8c8c8"
+        border_color = "#999999" if is_dark else "#b0b0b0"
+
+        self.control_overlay.setStyleSheet(f"""
+            QWidget {{
+                background-color: {panel_bg};
+                border: 1px solid {border_color};
+                border-radius: 12px;
+            }}
+            QPushButton {{
+                background-color: {button_bg};
+                color: {font_color};
+                border: 1px solid {border_color};
+                border-radius: 8px;
+                min-width: 54px;
+                min-height: 54px;
+                font-size: 22px;
+                font-weight: bold;
+            }}
+            QPushButton:hover {{
+                background-color: {button_hover};
+            }}
+            QPushButton:pressed {{
+                background-color: {button_pressed};
+            }}
+        """)
+
+        grid = QGridLayout(self.control_overlay)
+        grid.setContentsMargins(8, 8, 8, 8)
+        grid.setSpacing(6)
+
+        # Create holdable buttons (auto-repeat)
+        def make_button(text, func):
+            btn = QPushButton(text)
+            btn.pressed.connect(lambda: self._start_holding(func))
+            btn.released.connect(self._stop_holding)
+            return btn
+
+        self.hold_timer = QTimer()
+        self.hold_timer.timeout.connect(lambda: self._holding_action())
+
+        # Movement and rotation bindings
+        self.hold_action_func = None
+
+        self.btn_up = make_button("↑", lambda: self.translate_view(0, 10, 0))
+        self.btn_down = make_button("↓", lambda: self.translate_view(0, -10, 0))
+        self.btn_left = make_button("←", lambda: self.translate_view(-10, 0, 0))
+        self.btn_right = make_button("→", lambda: self.translate_view(10, 0, 0))
+
+        self.btn_rot_ul = make_button("⤺", lambda: self.rotate_camera('up_left'))
+        self.btn_rot_ur = make_button("⤻", lambda: self.rotate_camera('up_right'))
+        self.btn_rot_dl = make_button("⟳", lambda: self.rotate_camera('down_left'))
+        self.btn_rot_dr = make_button("⟲", lambda: self.rotate_camera('down_right'))
+
+        self.btn_reset = QPushButton("Reset")
+        self.btn_reset.clicked.connect(self.reset_camera)
+        self.btn_zoom_in = QPushButton("+")
+        self.btn_zoom_out = QPushButton("–")
+        self.btn_zoom_in.pressed.connect(lambda: self._start_holding(lambda: self.zoom_camera(1.05)))
+        self.btn_zoom_out.pressed.connect(lambda: self._start_holding(lambda: self.zoom_camera(0.95)))
+        self.btn_zoom_in.released.connect(self._stop_holding)
+        self.btn_zoom_out.released.connect(self._stop_holding)
+
+        # Layout grid
+        grid.addWidget(self.btn_rot_ul, 0, 0)
+        grid.addWidget(self.btn_up, 0, 1)
+        grid.addWidget(self.btn_rot_ur, 0, 2)
+        grid.addWidget(self.btn_left, 1, 0)
+        grid.addWidget(self.btn_reset, 1, 1)
+        grid.addWidget(self.btn_right, 1, 2)
+        grid.addWidget(self.btn_rot_dl, 2, 0)
+        grid.addWidget(self.btn_down, 2, 1)
+        grid.addWidget(self.btn_rot_dr, 2, 2)
+        grid.addWidget(self.btn_zoom_in, 3, 0, 1, 1)
+        grid.addWidget(self.btn_zoom_out, 3, 2, 1, 1)
+
+        self.btn_up.setToolTip("Move view up")
+        self.btn_down.setToolTip("Move view down")
+        self.btn_left.setToolTip("Move view left")
+        self.btn_right.setToolTip("Move view right")
+
+        self.btn_rot_ul.setToolTip("Rotate up-left")
+        self.btn_rot_ur.setToolTip("Rotate up-right")
+        self.btn_rot_dl.setToolTip("Rotate down-left")
+        self.btn_rot_dr.setToolTip("Rotate down-right")
+
+        self.btn_reset.setToolTip("Reset camera view")
+        self.btn_zoom_in.setToolTip("Zoom in")
+        self.btn_zoom_out.setToolTip("Zoom out")
+
+
+    def _on_vtk_resized(self, event):
+        """Ensure overlay stays anchored to bottom-left on resize."""
+        new_height = self.vtk_widget.height()
+        self.control_overlay.move(20, new_height - self.overlay_size.y() - 20)
+        event.accept()
+
+    # ==============================
+    # Button Hold Logic
+    # ==============================
+    def _start_holding(self, func):
+        self.hold_action_func = func
+        func()  # run once immediately
+        self.hold_timer.start(50)  # repeat every 50 ms
+
+    def _stop_holding(self):
+        self.hold_timer.stop()
+        self.hold_action_func = None
+
+    def _holding_action(self):
+        if self.hold_action_func:
+            self.hold_action_func()
+
+    # ==============================
+    # File loading and rendering
+    # ==============================
+    def select_file(self):
+        file_path, _ = QFileDialog.getOpenFileName(self, "Select .mha File", "", "MetaImage Files (*.mha)")
+        if file_path:
+            self.load_and_display(file_path)
+
+    def select_sample_file(self, item):
+        idx = self.file_list.row(item)
+        file_path = self.available_files[idx]
+        self.load_and_display(file_path)
+
+    def load_and_display(self, file_path):
+        try:
+            image_data, is_3d = load_mha_file(file_path)
+
+            # Verify VTK actually produced a valid image
+            if not image_data or not isinstance(image_data, vtk.vtkImageData):
+                raise ValueError("Not a valid image volume (unsupported data type).")
+
+            dims = image_data.GetDimensions()
+            if dims[0] == 0 or dims[1] == 0 or dims[2] == 0:
+                raise ValueError("File does not contain volumetric image data.")
+
+            # --- 1. Clear previous 3D objects ---
+            self.renderer.RemoveAllViewProps()
+
+            # --- 2. Setup Volume Rendering Pipeline ---
+            mapper = vtk.vtkSmartVolumeMapper()
+            mapper.SetInputData(image_data)
+
+            self.prop = vtk.vtkVolumeProperty()
+            self.prop.ShadeOn()
+            self.prop.SetInterpolationTypeToLinear()
+
+            # Set up default Color Transfer Function (Grayscale)
+            smin, smax = image_data.GetScalarRange()
+            color_func = vtk.vtkColorTransferFunction()
+            color_func.AddRGBPoint(smin, 0.0, 0.0, 0.0)
+            color_func.AddRGBPoint(smax, 1.0, 1.0, 1.0)
+            self.prop.SetColor(color_func)
+
+            self.is_hu_volume = (smin < -500 and smax > 1500) 
+
+            # Create and add volume to renderer
+            self.volume = vtk.vtkVolume()
+            self.volume.SetMapper(mapper)
+            self.volume.SetProperty(self.prop)
+            self.renderer.AddVolume(self.volume)
+            
+            # Add helper axes
+            self.renderer.AddActor(vtk.vtkAxesActor())
+
+            # --- 3. Initialize Opacity via Sliders ---
+            # Save the current file path so the slider method can access it
+            self.current_file = file_path
+            
+            # This replaces the entire "Section 4 & 5" from your old code
+            # It builds the PiecewiseFunction based on the current slider positions
+            # self.update_opacity_function()
+
+            # --- 4. Update UI Info Text ---
+            spacing = image_data.GetSpacing()
+            origin = image_data.GetOrigin()
+            self.sidebar_info.setHtml(
+                f"<b>File:</b> {os.path.basename(file_path)}<br>"
+                f"<b>Dimensions:</b> {dims}<br>"
+                f"<b>Spacing:</b> {spacing}<br>"
+                f"<b>Origin:</b> {origin}<br>"
+                f"<b>Scalar Range:</b> {(smin, smax)}<br>"
+                f"<b>Type:</b> {'3D Volume' if is_3d else '2D Image'}"
+            )
+
+            # Final visual refresh
+            self.renderer.ResetCamera()
+            self.update_color_function() # Ensure colors match the dropdown
+            self.render_window.Render()
+
+        except Exception as e:
+            self.renderer.RemoveAllViewProps()
+            self.render_window.Render()
+            QMessageBox.warning(
+                self,
+                "Error Loading File",
+                f"Cannot load this file:\n{file_path}\n\nReason:\n{e}"
+            )
+
+    # def update_opacity_function(self):
+    #     if not self.prop or not self.current_file:
+    #         return
+
+    #     # Get the range of the current data (e.g., 0 to 255)
+    #     # We need to fetch this from the actual volume data
+    #     image_data = self.volume.GetMapper().GetInput()
+    #     smin, smax = image_data.GetScalarRange()
+    #     s_range = smax - smin
+
+    #     # Calculate values based on sliders
+    #     # Threshold: Move the "start" of the ramp
+    #     thresh_val = smin + (self.threshold_slider.value() / 100.0) * s_range
+    #     # Peak: How opaque is the brightest point?
+    #     peak_opacity = self.peak_slider.value() / 100.0
+
+    #     # Create a new function
+    #     new_opacity = vtk.vtkPiecewiseFunction()
         
-        for f in files:
-            file_size = os.path.getsize(f) / (1024 * 1024)  # Size in MB
-            file_name = os.path.basename(f)
-            # Mark reconstructed/volume files
-            marker = " [3D VOLUME]" if ('reconstructed' in file_name.lower() or 'volume' in file_name.lower()) else ""
-            print(f"  {file_num:3d}. {file_name:<60} ({file_size:6.2f} MB){marker}")
-            file_num += 1
-    
-    print("\n" + "=" * 80)
-    print(f"Usage: python view_mha_volume.py <number>")
-    print(f"Example: python view_mha_volume.py 1")
-    print("=" * 80)
+    #     # 1. Everything below threshold is invisible (0.0)
+    #     new_opacity.AddPoint(smin, 0.0)
+    #     new_opacity.AddPoint(thresh_val, 0.0)
+        
+    #     # 2. Ramp up to the peak opacity at the max scalar value
+    #     new_opacity.AddPoint(smax, peak_opacity)
+
+    #     # Apply to volume
+    #     self.prop.SetScalarOpacity(new_opacity)
+    #     self.render_window.Render()
+
+    def apply_opacity_preset(self, preset):
+        if not self.prop or not self.volume:
+            return
+
+        smin, smax = self.volume.GetMapper().GetInput().GetScalarRange()
+        func = vtk.vtkPiecewiseFunction()
+
+        # Detect HU scan automatically
+        isHU = (smin < -500 and smax > 1500)
+
+        # -------------------------
+        # HU-BASED PRESETS (Slicer)
+        # -------------------------
+        if preset == "CT - Bone" and isHU:
+            # SlicerBone: hard bone = +700–3000
+            func.AddPoint(-1024, 0.00)   # air
+            func.AddPoint(  150, 0.00)   # soft tissue cutoff
+            func.AddPoint(  300, 0.10)   # trabecular bone
+            func.AddPoint(  700, 0.40)   # cortical start
+            func.AddPoint( 1200, 0.80)   # dense cortical
+            func.AddPoint( 3000, 1.00)
+        
+        elif preset == "CT - Soft Tissue" and isHU:
+            func.AddPoint(-1024, 0.00)
+            func.AddPoint(  -200, 0.00)
+            func.AddPoint(    50, 0.15)
+            func.AddPoint(   300, 0.50)
+            func.AddPoint(  1000, 1.00)
+
+        elif preset == "CT - Air" and isHU:
+            func.AddPoint(-1024, 1.00)
+            func.AddPoint(  -900, 0.80)
+            func.AddPoint(  -700, 0.50)
+            func.AddPoint(   300, 0.00)
+            func.AddPoint(  1500, 0.00)
+
+        elif preset == "CT - Chest" and isHU:
+            func.AddPoint(-1024, 0.00)
+            func.AddPoint(  -700, 0.20)
+            func.AddPoint(  -100, 0.50)
+            func.AddPoint(   300, 0.70)
+            func.AddPoint(  2000, 1.00)
+
+        elif preset == "MRI - Brain" and isHU:
+            # MRI-like appearance (not true HU)
+            func.AddPoint(smin, 0.00)
+            func.AddPoint(smin + (smax - smin)*0.20, 0.15)
+            func.AddPoint(smin + (smax - smin)*0.50, 0.35)
+            func.AddPoint(smin + (smax - smin)*0.85, 0.80)
+            func.AddPoint(smax, 1.00)
+
+        elif preset == "MRI - Bone" and isHU:
+            func.AddPoint(-1024, 0.00)
+            func.AddPoint(  100, 0.00)
+            func.AddPoint(  400, 0.10)
+            func.AddPoint( 1000, 0.50)
+            func.AddPoint( 2500, 1.00)
+
+        # ----------------------------------------------
+        # Generic presets for NON-HU (0–255 volumes)
+        # ----------------------------------------------
+        elif preset == "Ultrasound - Soft":
+            func.AddPoint(smin, 0.0)
+            func.AddPoint(smin + (smax-smin)*0.3, 0.1)
+            func.AddPoint(smin + (smax-smin)*0.6, 0.3)
+            func.AddPoint(smax, 1.0)
+
+        elif preset == "Ultrasound - High Contrast":
+            func.AddPoint(smin, 0.0)
+            func.AddPoint(smin + (smax-smin)*0.4, 0.0)
+            func.AddPoint(smin + (smax-smin)*0.6, 0.5)
+            func.AddPoint(smax, 1.0)
+
+        elif preset == "Bright Structures Only":
+            func.AddPoint(smin, 0.0)
+            func.AddPoint(smin + (smax-smin)*0.8, 0.0)
+            func.AddPoint(smax, 1.0)
+
+        elif preset == "Hide Background":
+            func.AddPoint(smin, 0.0)
+            func.AddPoint(smin + (smax-smin)*0.2, 0.0)
+            func.AddPoint(smin + (smax-smin)*0.5, 0.3)
+            func.AddPoint(smax, 1.0)
+
+        self.prop.SetScalarOpacity(func)
+        self.render_window.Render()
+
+
+    def apply_color_preset(self, preset):
+        if not self.prop or not self.volume:
+            return
+
+        smin, smax = self.volume.GetMapper().GetInput().GetScalarRange()
+        color = vtk.vtkColorTransferFunction()
+
+        isHU = (smin < -500 and smax > 1500)
+
+        # -------------------------
+        # HU-BASED COLOR PRESETS
+        # -------------------------
+        if preset == "CT - Bone" and isHU:
+            # Light yellow-white bone colors like Slicer
+            color.AddRGBPoint(-1024, 0.00, 0.00, 0.00)
+            color.AddRGBPoint(   300, 0.90, 0.85, 0.75)
+            color.AddRGBPoint(   700, 0.95, 0.92, 0.80)
+            color.AddRGBPoint(  1200, 1.00, 0.98, 0.90)
+            color.AddRGBPoint(  3000, 1.00, 1.00, 1.00)
+
+        elif preset == "CT - Soft Tissue" and isHU:
+            color.AddRGBPoint(-1024, 0.00, 0.00, 0.00)
+            color.AddRGBPoint(  -200, 0.50, 0.30, 0.20)
+            color.AddRGBPoint(    50, 0.80, 0.55, 0.40)
+            color.AddRGBPoint(   300, 0.95, 0.80, 0.70)
+            color.AddRGBPoint(  1500, 1.00, 0.95, 0.90)
+
+        elif preset == "CT - Chest" and isHU:
+            color.AddRGBPoint(-1024, 0.00, 0.00, 0.00)
+            color.AddRGBPoint(  -700, 0.20, 0.40, 0.80)    # blue-ish for air spaces
+            color.AddRGBPoint(  -100, 0.80, 0.60, 0.50)
+            color.AddRGBPoint(   300, 0.95, 0.80, 0.70)
+            color.AddRGBPoint(  2000, 1.00, 0.95, 0.90)
+
+        elif preset == "CT - Air" and isHU:
+            color.AddRGBPoint(smin, 1.00, 1.00, 1.00)
+            color.AddRGBPoint(-900, 0.80, 0.80, 0.80)
+            color.AddRGBPoint(-700, 0.40, 0.40, 0.40)
+            color.AddRGBPoint( 300, 0.00, 0.00, 0.00)
+            color.AddRGBPoint(1500, 0.00, 0.00, 0.00)
+
+        elif preset == "MRI - Brain" and isHU:
+            # MRI-like grayscale
+            color.AddRGBPoint(smin, 0.00, 0.00, 0.00)
+            color.AddRGBPoint(smin + (smax-smin)*0.30, 0.25, 0.25, 0.25)
+            color.AddRGBPoint(smin + (smax-smin)*0.60, 0.55, 0.55, 0.55)
+            color.AddRGBPoint(smax, 1.00, 1.00, 1.00)
+
+        elif preset == "MRI - Bone" and isHU:
+            color.AddRGBPoint(-1024, 0.00, 0.00, 0.00)
+            color.AddRGBPoint(  100, 0.20, 0.20, 0.20)
+            color.AddRGBPoint( 1000, 0.75, 0.75, 0.75)
+            color.AddRGBPoint( 2500, 1.00, 1.00, 1.00)
+
+        # ----------------------------------------------
+        # NON-HU / ULTRASOUND COLOR PRESETS
+        # ----------------------------------------------
+        elif preset == "Ultrasound - Soft":
+            color.AddRGBPoint(smin, 0.00, 0.00, 0.00)
+            color.AddRGBPoint(smax, 1.00, 1.00, 1.00)
+
+        elif preset == "Ultrasound - High Contrast":
+            color.AddRGBPoint(smin, 0.00, 0.00, 0.00)
+            color.AddRGBPoint(smax, 1.00, 1.00, 1.00)
+
+        elif preset == "Bright Structures Only":
+            color.AddRGBPoint(smin, 0.00, 0.00, 0.00)
+            color.AddRGBPoint(smax, 1.00, 1.00, 1.00)
+
+        elif preset == "Hide Background":
+            color.AddRGBPoint(smin, 0.00, 0.00, 0.00)
+            color.AddRGBPoint(smax, 1.00, 1.00, 1.00)
+
+        self.prop.SetColor(color)
+        self.render_window.Render()
+
+
+    def update_color_function(self):
+        if not self.prop or not self.volume:
+            return
+
+        image_data = self.volume.GetMapper().GetInput()
+        smin, smax = image_data.GetScalarRange()
+        
+        color_func = vtk.vtkColorTransferFunction()
+        preset = self.color_dropdown.currentText()
+
+        if preset == "Grayscale":
+            color_func.AddRGBPoint(smin, 0.0, 0.0, 0.0)
+            color_func.AddRGBPoint(smax, 1.0, 1.0, 1.0)
+
+        elif preset == "Thermal (Red-Yellow)":
+            # Dark Red -> Bright Orange -> Yellow
+            color_func.AddRGBPoint(smin, 0.2, 0.0, 0.0)
+            color_func.AddRGBPoint(smin + (smax-smin)*0.5, 1.0, 0.5, 0.0)
+            color_func.AddRGBPoint(smax, 1.0, 1.0, 0.0)
+
+        elif preset == "Ocean (Blue-Cyan)":
+            # Deep Blue -> Cyan -> White
+            color_func.AddRGBPoint(smin, 0.0, 0.0, 0.2)
+            color_func.AddRGBPoint(smin + (smax-smin)*0.5, 0.0, 0.8, 1.0)
+            color_func.AddRGBPoint(smax, 1.0, 1.0, 1.0)
+
+        elif preset == "Tissue-Bone":
+            # Purple (Fluid) -> Pink (Tissue) -> White (Bone)
+            color_func.AddRGBPoint(smin, 0.3, 0.0, 0.3)
+            color_func.AddRGBPoint(smin + (smax-smin)*0.4, 0.9, 0.6, 0.6)
+            color_func.AddRGBPoint(smax, 1.0, 1.0, 1.0)
+
+        self.prop.SetColor(color_func)
+        self.render_window.Render()
+
+    # ==============================
+    # Opacity / Brightness Controls
+    # ==============================
+    def adjust_opacity(self):
+        """Global opacity adjustment — visually effective scaling."""
+        if not self.volume:
+            return
+
+        # Map slider range (0–100) → scaling factor range (2.0 → 0.1)
+        # Lower value = denser opacity
+        slider_value = self.opacity_slider.value()
+        scaled_value = 2.0 - (slider_value / 100.0) * 1.9  # 2.0 → 0.1
+
+        self.volume.GetProperty().SetScalarOpacityUnitDistance(scaled_value)
+        self.render_window.Render()
+
+
+    def adjust_brightness(self):
+        if not self.prop:
+            return
+        val = self.brightness_slider.value() / 100.0
+        color = self.prop.GetRGBTransferFunction()
+        smin, smax = color.GetRange()
+        color.RemoveAllPoints()
+        low = max(0.0, 0.2 + val)
+        high = min(1.0, 1.0 + val)
+        color.AddRGBPoint(smin, low, low, low)
+        color.AddRGBPoint(smax, high, high, high)
+        self.render_window.Render()
+
+    # ==============================
+    # Camera Controls
+    # ==============================
+    def get_camera(self):
+        return self.renderer.GetActiveCamera()
+
+    def translate_view(self, dx, dy, dz):
+        cam = self.get_camera()
+        fp = list(cam.GetFocalPoint())
+        pos = list(cam.GetPosition())
+        fp[0] += dx
+        fp[1] += dy
+        fp[2] += dz
+        pos[0] += dx
+        pos[1] += dy
+        pos[2] += dz
+        cam.SetFocalPoint(fp)
+        cam.SetPosition(pos)
+        self.render_window.Render()
+
+    def rotate_camera(self, direction):
+        cam = self.get_camera()
+        if direction == 'up_left':
+            cam.Azimuth(-10)
+            cam.Elevation(10)
+        elif direction == 'up_right':
+            cam.Azimuth(10)
+            cam.Elevation(10)
+        elif direction == 'down_left':
+            cam.Azimuth(-10)
+            cam.Elevation(-10)
+        elif direction == 'down_right':
+            cam.Azimuth(10)
+            cam.Elevation(-10)
+        cam.OrthogonalizeViewUp()
+        self.renderer.ResetCameraClippingRange()
+        self.render_window.Render()
+
+    def zoom_camera(self, factor):
+        cam = self.get_camera()
+        cam.Zoom(factor)
+        self.renderer.ResetCameraClippingRange()
+        self.render_window.Render()
+
+    def reset_camera(self):
+        self.renderer.ResetCamera()
+        self.render_window.Render()
 
 
 def main():
-    """Main function to load and display .mha file."""
-    # Find all available files first
-    available_files = find_available_mha_files()
-    
-    # Determine which file to load and current index
-    current_index = 0
-    file_path = None
-    
-    if len(sys.argv) > 1:
-        arg = sys.argv[1]
-        
-        # Check if argument is a number
-        try:
-            file_number = int(arg)
-            if file_number < 1 or file_number > len(available_files):
-                print(f"Error: File number {file_number} is out of range.")
-                print(f"Please choose a number between 1 and {len(available_files)}")
-                print("\nAvailable files:")
-                list_available_files(available_files)
-                return
-            
-            current_index = file_number - 1  # Convert to 0-based index
-            file_path = available_files[current_index]
-            print(f"Selected file #{file_number}: {os.path.basename(file_path)}")
-            
-        except ValueError:
-            # Not a number, treat as file path
-            file_path = arg
-            # Try to find this file in the available_files list
-            if available_files:
-                try:
-                    current_index = available_files.index(os.path.abspath(file_path))
-                except ValueError:
-                    # File not in list, try to match by basename
-                    file_basename = os.path.basename(file_path)
-                    for i, f in enumerate(available_files):
-                        if os.path.basename(f) == file_basename:
-                            current_index = i
-                            break
-    else:
-        # No argument provided - list all files
-        list_available_files(available_files)
-        return
-    
-    try:
-        # Load the .mha file
-        image_data, is_3d = load_mha_file(file_path)
-        
-        viewer_type = "3D volume" if is_3d else "2D image"
-        print(f"\nCreating {viewer_type} viewer...")
-        
-        # Create and show viewer (with file scrolling if multiple files available)
-        render_window, interactor = create_3d_viewer(
-            image_data, 
-            is_3d, 
-            available_files=available_files if len(available_files) > 1 else None,
-            current_index=current_index
-        )
-        
-        print("\n" + "="*60)
-        print(f"{viewer_type.upper()} Viewer Controls:")
-        print("="*60)
-        print("  Mouse Controls:")
-        print("    Left Mouse Button + Drag: Rotate")
-        print("    Right Mouse Button + Drag: Zoom")
-        print("    Middle Mouse Button + Drag: Pan")
-        print("  Keyboard Controls:")
-        if available_files and len(available_files) > 1:
-            print(f"    Right Arrow / Down Arrow / 'n': Next file ({len(available_files)} files available)")
-            print(f"    Left Arrow / Up Arrow / 'p': Previous file")
-            print(f"    Home: First file")
-            print(f"    End: Last file")
-        print("    'r' key: Reset camera")
-        print("    'q' or Escape: Quit")
-        print("="*60)
-        print(f"\nDisplaying {viewer_type}...")
-        
-        # Show the window
-        render_window.Render()
-        interactor.Start()
-        
-    except FileNotFoundError as e:
-        print(f"Error: {e}")
-        sys.exit(1)
-    except Exception as e:
-        print(f"Error loading or displaying file: {e}")
-        import traceback
-        traceback.print_exc()
-        sys.exit(1)
+    app = QApplication(sys.argv)
+    viewer = MHAViewerApp()
+    viewer.show()
+    sys.exit(app.exec())
 
 
 if __name__ == "__main__":
     main()
-
