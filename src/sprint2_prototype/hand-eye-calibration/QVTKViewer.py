@@ -1339,21 +1339,24 @@ class QVTKViewer(QtWidgets.QMainWindow, Ui_MainWindow):
         )
 
         # --- DB: Register this .mha file as a captured ultrasound stream ---
-        session_id = self.db_capture_session_id or start_capture_session(
-            device_id=self.db_device_id,
-            config_id=self.db_config_id,
-            output_dir=str(Path(self.plusOutPath).parent),
-            fps=0.0,
-            status="SAVED",
-        )
-        artifact_id = add_ultrasound_stream(
-            session_id=session_id,
-            file_path=self.plusOutPath,
-            stream_type="MHA",
-        )
-        log_event(session_id, "MHA_SAVED", "INFO", f"artifact_id={artifact_id}, path={self.plusOutPath}")
-        self.log(f"[DB] .mha registered -> artifact_id={artifact_id}")
-        self.saveCaptureToDB.setEnabled(True)
+        if self.plusOutPath and os.path.isfile(self.plusOutPath):
+            session_id = self.db_capture_session_id or start_capture_session(
+                device_id=self.db_device_id,
+                config_id=self.db_config_id,
+                output_dir=str(Path(self.plusOutPath).parent),
+                fps=0.0,
+                status="SAVED",
+            )
+            artifact_id = add_ultrasound_stream(
+                session_id=session_id,
+                file_path=self.plusOutPath,
+                stream_type="MHA",
+            )
+            log_event(session_id, "MHA_SAVED", "INFO", f"artifact_id={artifact_id}, path={self.plusOutPath}")
+            self.log(f"[DB] .mha registered → artifact_id={artifact_id}")
+            self.saveCaptureToDB.setEnabled(True)
+        else:
+            self.log("[DB] WARNING: .mha file not found after write, skipping DB registration")
 
     def _snapshot_plus_metadata(self):
         """Transform and timestamp before requesting a capture frame"""
@@ -1496,6 +1499,15 @@ class QVTKViewer(QtWidgets.QMainWindow, Ui_MainWindow):
             1       # decimals
         )
 
+        if not ok:
+            return
+
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.captureSequenceDir = os.path.join(out_dir, f"capture_{timestamp}")
+        os.makedirs(self.captureSequenceDir, exist_ok=True)
+
+        # DB session created
         self.db_capture_session_id = start_capture_session(
             device_id=self.db_device_id,
             config_id=self.db_config_id,
@@ -1505,16 +1517,11 @@ class QVTKViewer(QtWidgets.QMainWindow, Ui_MainWindow):
         )
         log_event(self.db_capture_session_id, "CAPTURE_START", "INFO", f"out_dir={out_dir}, fps={fps}")
 
-
-        if not ok:
-            return
-
-        self.captureSequenceDir = out_dir
         self.contCaptureActive = True
         self.contCaptureFrameIdx = 0
 
         # open CSV
-        csv_path = os.path.join(out_dir, "frames.csv")
+        csv_path = os.path.join(self.captureSequenceDir, f"frames_{timestamp}.csv")
         self.contCaptureCsvFile = open(csv_path, "w", newline="")
         self.contCaptureCsvWriter = csv.writer(self.contCaptureCsvFile)
         self.contCaptureCsvWriter.writerow(["frame_idx", "filename", "t_wall_sec", "t_mono_sec"])
@@ -1553,11 +1560,13 @@ class QVTKViewer(QtWidgets.QMainWindow, Ui_MainWindow):
             log_event(self.db_capture_session_id, "CAPTURE_STOP", "INFO", "Stopped by user")
             end_capture_session(self.db_capture_session_id, status="COMPLETED")
             self.db_last_capture_dir = self.captureSequenceDir
+            self.db_last_session_id = self.db_capture_session_id
             self.db_capture_session_id = None
 
         self.saveCaptureToDB.setEnabled(True)
 
     def saveCaptureToDatabase(self):
+         # --- PLUS .mha path (from startCaptureSeq) ---
         if self.plusOutPath and os.path.isfile(self.plusOutPath):
             session_id = start_capture_session(
                 device_id=self.db_device_id,
@@ -1581,20 +1590,15 @@ class QVTKViewer(QtWidgets.QMainWindow, Ui_MainWindow):
 
         # --- Continuous capture path (folder of .png frames) ---
         elif hasattr(self, "db_last_capture_dir") and self.db_last_capture_dir:
-            session_id = start_capture_session(
-                device_id=self.db_device_id,
-                config_id=self.db_config_id,
-                output_dir=self.db_last_capture_dir,
-                fps=0.0,
-                status="SAVED",
-            )
+            session_id = self.db_last_session_id
             end_capture_session(session_id, status="SAVED")
             artifact_id = add_ultrasound_stream(
                 session_id=session_id,
                 file_path=self.db_last_capture_dir,
                 stream_type="FRAMES_DIR",
             )
-            log_event(session_id, "CAPTURE_SAVED", "INFO", f"artifact_id={artifact_id}, path={self.db_last_capture_dir}")
+            log_event(session_id, "CAPTURE_SAVED", "INFO",
+                      f"artifact_id={artifact_id}, path={self.db_last_capture_dir}")
             self.log(f"[DB] Capture folder registered → artifact_id={artifact_id}")
             QtWidgets.QMessageBox.information(
                 self, "Saved to Database",
