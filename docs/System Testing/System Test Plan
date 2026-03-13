@@ -1,0 +1,57 @@
+System Test Plan
+1. Test Objectives
+Testing focuses on ensuring that the system can correctly ingest tracked ultrasound data, process the frames, reconstruct a 3D volume, and visualize the output while maintaining acceptable performance and usability.
+The system will be considered acceptable for final delivery if:
+•	Core user journeys complete successfully without crashes or data corruption.
+•	High and medium severity defects are resolved prior to final demo.
+•	Reconstruction results are produced correctly and viewable in the visualization interface.
+2. Scope
+In Scope
+System testing will focus on validating the following core workflows:
+1. Load Tracked Ultrasound Data
+ User loads a .mha ultrasound sequence with associated tracking metadata.
+2. Apply Pre-Processing / Masking
+ System applies fan masking or cropping to ultrasound frames prior to reconstruction.
+3. 3D Volume Reconstruction
+ System reconstructs a 3D volume from the tracked ultrasound frames using the reconstruction pipeline.
+4. Visualization of Reconstructed Volume
+ User can view the reconstructed volume or slice views within the visualization interface.
+5. Save or Export Reconstructed Output
+ User can save or export the reconstructed volume or processed dataset.
+6. Parameter Adjustment Workflow
+ User modifies reconstruction parameters (e.g., spacing, cropping, mask settings) and re-runs reconstruction.
+Out of Scope
+The following features are not included in Phase 5 system testing:
+•	Advanced algorithm validation or reconstruction accuracy benchmarking.
+
+
+•	Hardware-level testing of tracking devices (e.g., NDI Polaris or Aurora).
+•	Large-scale performance benchmarking with extremely large datasets.
+3. Test Types & Tools
+System / Functional Tests
+Functional testing will validate that each core user workflow operates correctly from start to finish.
+Example functional checks include:
+•	Uploading and parsing tracked ultrasound datasets
+•	Successful generation of reconstructed 3D volumes
+•	Proper rendering of visualization outputs
+•	Successful saving or exporting of output files
+Testing will primarily be conducted through manual test scripts simulating user interactions with the system.
+Non-Functional Checks
+Basic checks will be performed for:
+Performance
+Reconstruction completes within a reasonable time for standard datasets
+Usability
+•	The user interface clearly displays reconstruction outputs and parameters.
+Reliability
+•	System does not crash when loading or processing typical datasets.
+Regression Tests
+Regression testing will involve re-running key workflows after bug fixes or system changes to ensure that previously working functionality has not been broken.
+Key regression paths include:
+•	Running reconstruction pipeline
+•	Visualizing reconstructed volumes
+Tools
+Testing will be performed using the following tools:
+•	Visualization tools (VTK / GUI viewer) for verifying reconstruction results
+•	Sample ultrasound datasets (.mha files) for repeatable test cases
+
+
