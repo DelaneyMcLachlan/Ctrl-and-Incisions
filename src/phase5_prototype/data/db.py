@@ -331,7 +331,117 @@ def add_tracking_stream(
     finally:
         conn.close()
 
+def get_recent_capture_sessions(limit: int = 20):
+    conn = get_connection()
+    try:
+        cur = conn.execute(
+            """
+            SELECT
+                cs.session_id,
+                cs.started_at,
+                cs.ended_at,
+                cs.status,
+                cs.output_dir,
+                cs.fps,
+                td.name AS device_name,
+                dc.config_path,
+                dc.config_type
+            FROM capture_sessions cs
+            LEFT JOIN tracking_devices td ON cs.device_id = td.device_id
+            LEFT JOIN device_configs dc ON cs.config_id = dc.config_id
+            ORDER BY cs.started_at DESC
+            LIMIT ?
+            """,
+            (limit,),
+        )
+        return cur.fetchall()
+    finally:
+        conn.close()
+
+
+def get_capture_session_details(session_id: int):
+    conn = get_connection()
+    try:
+        cur = conn.execute(
+            """
+            SELECT
+                cs.session_id,
+                cs.started_at,
+                cs.ended_at,
+                cs.status,
+                cs.output_dir,
+                cs.fps,
+                td.name AS device_name,
+                td.type AS device_type,
+                td.connection_info,
+                dc.config_path,
+                dc.config_type,
+                dc.notes
+            FROM capture_sessions cs
+            LEFT JOIN tracking_devices td ON cs.device_id = td.device_id
+            LEFT JOIN device_configs dc ON cs.config_id = dc.config_id
+            WHERE cs.session_id = ?
+            """,
+            (session_id,),
+        )
+        return cur.fetchone()
+    finally:
+        conn.close()
+
+
+def get_ultrasound_streams_for_session(session_id: int):
+    conn = get_connection()
+    try:
+        cur = conn.execute(
+            """
+            SELECT artifact_id, stream_type, file_path, fps, resolution, created_at
+            FROM ultrasound_streams
+            WHERE session_id = ?
+            ORDER BY created_at DESC
+            """,
+            (session_id,),
+        )
+        return cur.fetchall()
+    finally:
+        conn.close()
+
+
+def get_tracking_streams_for_session(session_id: int):
+    conn = get_connection()
+    try:
+        cur = conn.execute(
+            """
+            SELECT artifact_id, stream_type, file_path, rate_hz, created_at
+            FROM tracking_streams
+            WHERE session_id = ?
+            ORDER BY created_at DESC
+            """,
+            (session_id,),
+        )
+        return cur.fetchall()
+    finally:
+        conn.close()
+
+
+def get_logs_for_session(session_id: int, limit: int = 50):
+    conn = get_connection()
+    try:
+        cur = conn.execute(
+            """
+            SELECT event_type, timestamp, level, message
+            FROM logs
+            WHERE session_id = ?
+            ORDER BY timestamp DESC
+            LIMIT ?
+            """,
+            (session_id, limit),
+        )
+        return cur.fetchall()
+    finally:
+        conn.close()
+
 
 if __name__ == "__main__":
     init_db()
     print(f"Database initialized at {DB_PATH}")
+    
