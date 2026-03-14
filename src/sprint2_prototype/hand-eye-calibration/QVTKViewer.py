@@ -18,12 +18,31 @@ from vtkMainWindow_ui import Ui_MainWindow
 import vtkMainWindow_ui
 print("USING UI FILE:", vtkMainWindow_ui.__file__)
 
-BASE_DIR = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(BASE_DIR))
+# BASE_DIR = Path(__file__).resolve().parents[2]
+# sys.path.insert(0, str(BASE_DIR))
+
+# from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
+# from sksurgerynditracker.nditracker import NDITracker
+# from database.db import init_db, get_or_create_device, start_capture_session, end_capture_session, add_ultrasound_stream, add_tracking_stream, log_event, create_device_config
+
+SRC_DIR = Path(__file__).resolve().parents[2]
+PHASE5_DIR = SRC_DIR / "phase5_prototype"
+
+sys.path.insert(0, str(PHASE5_DIR))
+sys.path.insert(0, str(SRC_DIR))
 
 from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 from sksurgerynditracker.nditracker import NDITracker
-from database.db import init_db, get_or_create_device, start_capture_session, end_capture_session, add_ultrasound_stream, add_tracking_stream, log_event, create_device_config
+from data.db import (
+    init_db,
+    get_or_create_device,
+    start_capture_session,
+    end_capture_session,
+    add_ultrasound_stream,
+    add_tracking_stream,
+    log_event,
+    create_device_config,
+)
 
 from OverlayApp import OverlayApp
 

@@ -51,9 +51,9 @@ class NavigationPage(QWidget):
         # Top Bar With Back Button
         # ------------------------------------------------------
         top_bar = QHBoxLayout()
-        back_btn = QPushButton("←")
-        back_btn.setFixedSize(32, 32)
-        back_btn.setStyleSheet(f"""
+        self.btn_back = QPushButton("←")
+        self.btn_back.setFixedSize(32, 32)
+        self.btn_back.setStyleSheet(f"""
             QPushButton {{
                 background-color: {WHITE};
                 border-radius: 6px;
@@ -72,7 +72,7 @@ class NavigationPage(QWidget):
         top_title.setStyleSheet(f"color:{NAVY}; font-size:11pt; font-weight:600;")
         top_title.setContentsMargins(10, 0, 0, 0)
 
-        top_bar.addWidget(back_btn)
+        top_bar.addWidget(self.btn_back)
         top_bar.addWidget(top_title)
         top_bar.addStretch()
         layout.addLayout(top_bar)
