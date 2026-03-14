@@ -1,0 +1,108 @@
+System Test Cases
+Project: 3D Ultrasound Reconstruction System
+Test Case ID: TC-01
+Title: Load tracked ultrasound sequence successfully
+Pre-conditions:
+- The system is installed and launches correctly.
+- A valid .mha ultrasound sequence file with tracking metadata is available.
+- User has access to the dataset location.
+
+Steps:
+1. Launch the application.
+2. Select the option to load an ultrasound sequence.
+3. Browse to a valid tracked .mha dataset.
+4. Open the dataset.
+
+Expected Result:
+- The dataset loads without errors.
+- Frames and associated metadata are recognized by the system.
+- The user can proceed to the next processing step.
+
+Actual Result :
+Pass / Fail, plus notes:PASS
+
+Test Case ID: TC-02
+Title: Apply fan mask / preprocessing to ultrasound frames
+Pre-conditions:
+- A valid ultrasound dataset has already been loaded.
+- Masking or preprocessing settings are available in the system.
+
+Steps:
+1. Load a valid tracked ultrasound dataset.
+2. Open the preprocessing or masking interface.
+3. Enter or adjust fan mask parameters.
+4. Apply the mask to the dataset.
+5. Review the processed output frames.
+
+Expected Result:
+- The mask is applied successfully to the ultrasound frames.
+- Output frames reflect the selected masking or cropping region.
+- No crash or corruption occurs during preprocessing.
+
+Actual Result:
+Pass / Fail: PASS
+
+Test Case ID: TC-03
+Title: Reconstruct a 3D ultrasound volume from tracked frames
+Pre-conditions:
+- A valid dataset is loaded.
+- Required preprocessing has been completed if needed.
+- Reconstruction parameters are set to valid values.
+
+Steps:
+1. Load a tracked ultrasound dataset.
+2. Apply preprocessing if required.
+3. Open the reconstruction settings.
+4. Enter valid reconstruction parameters.
+5. Start the reconstruction process.
+6. Wait for reconstruction to complete.
+
+Expected Result:
+- The system completes the reconstruction process successfully.
+- A 3D volume is generated from the tracked 2D frames.
+- No fatal errors or crashes occur.
+
+Actual Result (from Phase 5 execution):
+Pass / Fail: PASS
+
+Test Case ID: TC-04
+Title: Visualize reconstructed 3D volume
+Pre-conditions:
+- A successful 3D reconstruction has been completed.
+- Visualization tools or viewer window are available.
+
+Steps:
+1. Complete a valid 3D reconstruction.
+2. Open the visualization window or viewer.
+3. Display the reconstructed volume.
+4. Interact with the view if supported (rotate, zoom, or inspect slices).
+
+Expected Result:
+- The reconstructed volume is displayed correctly.
+- Visualization loads without crashing or freezing.
+- User can inspect the reconstruction output clearly.
+
+Actual Result (from Phase 5 execution):
+Pass / Fail: PASS
+
+Test Case ID: TC-05
+Title: Export or save reconstructed output
+Pre-conditions:
+- A reconstruction has been completed successfully.
+- User has write access to the selected save location.
+
+Steps:
+1. Complete a valid reconstruction.
+2. Select the export or save option.
+3. Choose a save location and filename.
+4. Confirm the export.
+5. Verify that the file appears in the target location.
+
+Expected Result:
+- The reconstructed output is saved or exported successfully.
+- The output file exists in the specified location.
+- The exported file can be reopened or used later in the workflow if applicable.
+
+Actual Result:
+Pass / Fail: PASS
+
