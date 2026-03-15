@@ -1,14 +1,10 @@
-# NavigationPage.py
-import sys
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
-    QApplication, QSpacerItem, QSizePolicy
+    QSpacerItem, QSizePolicy
 )
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFont
 
-# --- THEME COLORS ---
-LEFT_BG = "#E8E8F2"            # Page background
+LEFT_BG = "#E8E8F2"
 NAVY = "#132B50"
 WHITE = "#FFFFFF"
 ACCENT = "#3A66B7"
@@ -20,6 +16,7 @@ SHADOW = "#C8CCDD"
 def make_nav_button(text):
     btn = QPushButton(text)
     btn.setFixedSize(260, 36)
+
     btn.setStyleSheet(f"""
         QPushButton {{
             background-color: {WHITE};
@@ -35,12 +32,12 @@ def make_nav_button(text):
         }}
         QPushButton:pressed {{
                 background-color: {PRESSED};
-        }}
+            }}
     """)
     return btn
 
 
-class NavigationPage(QWidget):
+class CalibrationNavigationPage(QWidget):
     def __init__(self):
         super().__init__()
 
@@ -48,15 +45,19 @@ class NavigationPage(QWidget):
         self._build_ui()
 
     def _build_ui(self):
+
         layout = QVBoxLayout(self)
         layout.setContentsMargins(20, 20, 20, 20)
 
-        # ------------------------------------------------------
-        # Top Bar With Back Button
-        # ------------------------------------------------------
+        # --------------------------
+        # Top Bar
+        # --------------------------
+
         top_bar = QHBoxLayout()
+
         self.btn_back = QPushButton("←")
         self.btn_back.setFixedSize(32, 32)
+
         self.btn_back.setStyleSheet(f"""
             QPushButton {{
                 background-color: {WHITE};
@@ -75,53 +76,46 @@ class NavigationPage(QWidget):
             }}
         """)
 
-        top_title = QLabel("Ultrasound Sequence Menu  ")
-        top_title.setStyleSheet(f"color:{NAVY}; font-size:11pt; font-weight:600;")
-        top_title.setContentsMargins(10, 0, 0, 0)
+        title = QLabel("Calibration Menu  ")
+        title.setStyleSheet(f"color:{NAVY}; font-size:11pt; font-weight:600;")
+        title.setContentsMargins(10, 0, 0, 0)
 
         top_bar.addWidget(self.btn_back)
-        top_bar.addWidget(top_title)
+        top_bar.addWidget(title)
         top_bar.addStretch()
+
         layout.addLayout(top_bar)
 
-        # ------------------------------------------------------
+        # --------------------------
         # Center Buttons
-        # ------------------------------------------------------
-        center_wrapper = QVBoxLayout()
-        center_wrapper.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        # --------------------------
 
-        center_wrapper.addItem(QSpacerItem(20, 120, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding))
+        center = QVBoxLayout()
+        center.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        self.btn_config = make_nav_button("Configure Hardware")
-        self.btn_record = make_nav_button("Record Sequence")
-        self.btn_recon  = make_nav_button("Perform Volume Reconstruction")
-        self.btn_view3d = make_nav_button("View 3D Reconstruction")
+        center.addItem(QSpacerItem(20, 120, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding))
 
-        # self.btn_config.clicked.connect(self.open_config_editor)
-        # self.btn_record.clicked.connect(self.open_record_page)
-        # self.btn_view3d.clicked.connect(self.open_volume_viewer)    
+        self.btn_calibrate = make_nav_button("Perform Calibration")
+        self.btn_results = make_nav_button("View Previous Results")
 
+        center.addWidget(self.btn_calibrate)
+        center.addSpacing(15)
+        center.addWidget(self.btn_results)
 
-        center_wrapper.addWidget(self.btn_config)
-        center_wrapper.addSpacing(15)
-        center_wrapper.addWidget(self.btn_record)
-        center_wrapper.addSpacing(15)
-        center_wrapper.addWidget(self.btn_recon)
-        center_wrapper.addSpacing(15)
-        center_wrapper.addWidget(self.btn_view3d)
+        center.addItem(QSpacerItem(20, 120, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding))
 
-        center_wrapper.addItem(QSpacerItem(20, 120, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding))
+        layout.addLayout(center)
 
-        layout.addLayout(center_wrapper)
+        # --------------------------
+        # Bottom Help Button
+        # --------------------------
 
-        # ------------------------------------------------------
-        # Help Button (bottom-right)
-        # ------------------------------------------------------
-        bottom_bar = QHBoxLayout()
-        bottom_bar.addStretch()
+        bottom = QHBoxLayout()
+        bottom.addStretch()
 
         help_btn = QPushButton("?")
         help_btn.setFixedSize(32, 32)
+
         help_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: {WHITE};
@@ -138,15 +132,7 @@ class NavigationPage(QWidget):
                 background-color: {PRESSED};
             }}
         """)
-        bottom_bar.addWidget(help_btn)
 
-        layout.addLayout(bottom_bar)
+        bottom.addWidget(help_btn)
 
-
-# Standalone test
-if __name__ == "__main__":
-    app = QApplication(sys.argv)
-    w = NavigationPage()
-    w.resize(1100, 680)
-    w.show()
-    sys.exit(app.exec())
+        layout.addLayout(bottom)

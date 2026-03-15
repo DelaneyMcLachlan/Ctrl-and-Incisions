@@ -14,6 +14,15 @@ from PyQt6.QtWidgets import (
     QGraphicsDropShadowEffect,
 )
 
+# --- THEME COLORS ---
+LEFT_BG = "#E8E8F2"            # Page background
+NAVY = "#132B50"
+WHITE = "#FFFFFF"
+ACCENT = "#3A66B7"
+ACCENT_HOVER = "#4A7DE0"
+PRESSED = "#7FA6E4"
+SHADOW = "#C8CCDD"
+
 
 class LandingPage(QWidget):
     def __init__(self, go_to_calibration=None, go_to_sequence_menu=None):
@@ -56,12 +65,12 @@ class LandingPage(QWidget):
         self.left_panel = QFrame()
         self.left_panel.setObjectName("leftPanel")
         self.left_panel.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
-        self.left_panel.setStyleSheet("""
-            QFrame#leftPanel {
-                background-color: #E9E9EE;
+        self.left_panel.setStyleSheet(f"""
+            QFrame#leftPanel {{
+                background-color: {LEFT_BG};
                 border-top-right-radius: 28px;
                 border-bottom-right-radius: 28px;
-            }
+            }}
         """)
 
         self.left_layout = QVBoxLayout(self.left_panel)
@@ -71,11 +80,11 @@ class LandingPage(QWidget):
         # Logo container
         self.logo_container = QFrame()
         self.logo_container.setObjectName("logoContainer")
-        self.logo_container.setStyleSheet("""
-            QFrame#logoContainer {
-                background-color: white;
+        self.logo_container.setStyleSheet(f"""
+            QFrame#logoContainer {{
+                background-color: {WHITE};
                 border-radius: 12px;
-            }
+            }}
         """)
         self.logo_container.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         self.setup_shadow(self.logo_container, blur=16, y_offset=3, color_alpha=45)
@@ -101,11 +110,11 @@ class LandingPage(QWidget):
         self.card.setObjectName("card")
         self.card.setMaximumWidth(420)
         self.card.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum)
-        self.card.setStyleSheet("""
-            QFrame#card {
-                background-color: #FCFCFD;
+        self.card.setStyleSheet(f"""
+            QFrame#card {{
+                background-color: {WHITE};
                 border-radius: 18px;
-            }
+            }}
         """)
         self.setup_shadow(self.card, blur=22, y_offset=4, color_alpha=38)
 
@@ -125,13 +134,13 @@ class LandingPage(QWidget):
         self.title_label = QLabel("Spatial Ultrasound Calibration\nand Reconstruction")
         self.title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.title_label.setWordWrap(True)
-        self.title_label.setStyleSheet("""
-            QLabel {
-                color: #2948A3;
+        self.title_label.setStyleSheet(f"""
+            QLabel {{
+                color: {NAVY};
                 font-weight: 600;
                 line-height: 1.2;
                 background: transparent;
-            }
+            }}
         """)
 
         self.card_layout.addSpacing(6)
@@ -226,9 +235,9 @@ class LandingPage(QWidget):
 
         button_style = f"""
             QPushButton {{
-                background-color: #FFFFFF;
-                color: #2948A3;
-                border: 1px solid #D6D6DB;
+                background-color: {WHITE};
+                color: {NAVY};
+                border: 1px solid {SHADOW};
                 border-radius: {radius}px;
                 min-height: {button_height}px;
                 max-height: {button_height}px;
@@ -238,11 +247,12 @@ class LandingPage(QWidget):
                 padding-right: 18px;
             }}
             QPushButton:hover {{
-                background-color: #F4F7FF;
+                background-color: {ACCENT_HOVER};
                 border: 1px solid #C8D3F5;
+                color: white;
             }}
             QPushButton:pressed {{
-                background-color: #E8EEFF;
+                background-color: {PRESSED};
             }}
         """
 
