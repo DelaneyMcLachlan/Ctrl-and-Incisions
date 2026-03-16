@@ -1,15 +1,16 @@
 import numpy as np
+import numpy.matlib
 
 def solve_hand_eye_p2l(X, Q, A, tol=0.001):
     """
     Solves for the extrinsic matrix using Point-to-Line registration.
-    
+
     Args:
         X (3xn): 3D coordinates (tracker space)
         Q (2xn): 2D pixel locations (image space)
         A (3x3): Camera intrinsic matrix
         tol: Tolerance for convergence
-        
+
     Returns:
         R, t: Rotation matrix (3x3) and translation vector (3x1)
     """
@@ -17,10 +18,10 @@ def solve_hand_eye_p2l(X, Q, A, tol=0.001):
     n = Q.shape[1]
     e = np.ones(n)
     J = np.identity(n) - (np.divide((np.transpose(e) * e), n))
-    
+
     # Normalize 2D pixel coordinates
     Q_norm = np.linalg.inv(A) @ np.vstack((Q, e))
-    
+
     Y = np.empty((3, 0))
     for i in range(n):
         x = Q_norm[:, i]
@@ -31,33 +32,34 @@ def solve_hand_eye_p2l(X, Q, A, tol=0.001):
     Q_vectors = Y
     err = np.inf
     E_old = 1000 * np.ones((3, n))
-    
+
     while err > tol:
         a = Y @ J @ X.T.conj()
-        U, S, V, = np.linalg.svd(a)
+        U, S, V = np.linalg.svd(a)
 
         # Get rotation
-        R = U @ np.array([[1, 0, 0], [0, 1, 0], [0, 0, np.linalg.det(U @ V)]]) @ V 
+        R = U @ np.array([[1, 0, 0], [0, 1, 0], [0, 0, np.linalg.det(U @ V)]]) @ V
 
         # Get translation
         T = Y - R @ X
-        t = ([])
-        for i in range(np.shape(Y)[0]): # could use n?
+        t = []
+        for i in range(np.shape(Y)[0]):
             t = np.append(t, np.mean(T[i]))
         t = np.reshape(t, (np.shape(Y)[0], 1))
 
         # Reprojection
         h = R @ X + t * e
-        H = ([])
-        for i in range(np.shape(Q)[1]):
-            H = np.append(H, np.dot(h[:, i], Q[:, i]))
-        Y = np.matlib.repmat(H, 3, 1) * Q
+        H = []
+        for i in range(Q_vectors.shape[1]):
+            H.append(np.dot(h[:, i], Q_vectors[:, i]))
+        H = np.array(H)
+        Y = np.matlib.repmat(H, 3, 1) * Q_vectors
 
         # Get reprojection error
         E = Y - R @ X - t * e
         err = np.linalg.norm(E - E_old, 'fro')
         E_old = E
-    
+
     return R, t
 
 def compute_reprojection_error(ext_mtx, pts3d, pts2d, int_mtx):
@@ -73,14 +75,20 @@ def compute_reprojection_error(ext_mtx, pts3d, pts2d, int_mtx):
         cam_pt = ext_mtx @ pt_3d
         cam_pt = cam_pt[:3] / cam_pt[2] # Normalize Z
         
-        # Project to pixels
+        # Project to pixels and calculate error
         proj = int_mtx @ cam_pt
-        
-        # Calculate error
         actual = pts2d[:, k].reshape(2, 1)
-        # Note: proj is 3x1 (homogeneous), actual is 2x1
-        err_vec = proj[0:2] - actual
-        error = np.linalg.norm(err_vec)
+        
+        x_err = abs(proj[0, 0] - actual[0, 0])
+        y_err = abs(proj[1, 0] - actual[1, 0])
+        error = np.sqrt((x_err ** 2) + (y_err ** 2))
+
+        print(f"proj_px[0, 0]: {proj[0, 0]}")
+        print(f"px[0, 0]: {actual[0, 0]}")
+        print(f"xErr: {x_err}")
+        print(f"proj_px[1, 0]: {proj[1, 0]}")
+        print(f"px[1, 0]: {actual[1, 0]}")
+        print(f"yErr: {y_err}")
         
         px_errs.append(error)
         projected_px.append(proj)
