@@ -148,15 +148,24 @@ def readHECalibrationFromXml(fname):
 # Writers
 
 def writeErrToCsv(pxErrs, distErrs, angularErrs, output_path):
-    fname = f"{output_path}/error_stats.csv"
-    n = len(pxErrs)
-    with open(fname, 'w', newline='') as csvfile:
-        w = csv.writer(csvfile)
-        w.writerow(["Frame", "Pixel Error (px)", "Distance Error (mm)", "Angular Error (degrees)"])
-        for i in range(n):
-            w.writerow([str(i+1), str(pxErrs[i, 0]), str(distErrs[i, 0]), str(angularErrs[i, 0])])
-        w.writerow(["Average", str(np.mean(pxErrs)), str(np.mean(distErrs)), str(np.mean(angularErrs))])
+    import csv
+    import numpy as np
+    import os
 
+    os.makedirs(output_path, exist_ok=True)
+    fname = os.path.join(output_path, "error_metrics.csv")
+
+    pxErrs = np.asarray(pxErrs).reshape(-1)
+    distErrs = np.asarray(distErrs).reshape(-1)
+    angularErrs = np.asarray(angularErrs).reshape(-1)
+
+    with open(fname, 'w', newline='') as f:
+        w = csv.writer(f)
+        w.writerow(["Frame", "Pixel Error (px)", "Distance Error (mm)", "Angular Error (deg)"])
+
+        n = min(len(pxErrs), len(distErrs), len(angularErrs))
+        for i in range(n):
+            w.writerow([str(i + 1), str(pxErrs[i]), str(distErrs[i]), str(angularErrs[i])])
 def writeTrackingToXml(fname: str, captureList: list):
     qfile = QtCore.QFile(fname)
     qfile.open(QtCore.QIODevice.WriteOnly)

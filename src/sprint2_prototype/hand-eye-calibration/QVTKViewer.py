@@ -692,6 +692,10 @@ class QVTKViewer(QtWidgets.QMainWindow, Ui_MainWindow):
 
                 # run at 20 Hz
                 self.fakeTrackerTimer.start(50)
+                
+                 # Mark tracker as initialized so pivot logic can run
+                self.isTrackerInitialized = True
+                print("Fake tracker initialized.")
 
                 # Show the tracked sphere
                 self.sphereActor.SetUserTransform(self.tipTransform)
@@ -742,6 +746,10 @@ class QVTKViewer(QtWidgets.QMainWindow, Ui_MainWindow):
                     self.fakeTrackerTimer.stop()
                 if self.fakeTracker is not None:
                     self.fakeTracker.stop()
+                    
+                self.isTrackerInitialized = False
+                self.collectPivotCalData = False
+                print("Fake tracker stopped.")
 
                 self.ren.RemoveActor(self.sphereActor)
                 self.qvtkwin.GetRenderWindow().Render()
@@ -771,6 +779,12 @@ class QVTKViewer(QtWidgets.QMainWindow, Ui_MainWindow):
 
             if self.collectPivotCalData and not np.isnan(np.sum(sty_mat_16) + np.sum(cam_mat_16)):
                 self.pivotCalArray.InsertNextTuple(sty_mat_16)
+                
+                count = self.pivotCalArray.GetNumberOfTuples()
+                if count == 1:
+                    print("First pivot sample collected.")
+                if count % 10 == 0:
+                    print("Pivot samples collected so far:", count)
             
             self.styTransform.SetMatrix(sty_mat_16)
             self.camTransform.SetMatrix(cam_mat_16)
@@ -811,7 +825,7 @@ class QVTKViewer(QtWidgets.QMainWindow, Ui_MainWindow):
         """
         if not USE_FAKE_TRACKER or self.fakeTracker is None:
             return
-        
+
         if self.qvtkwin is None or not self.qvtkwin.isVisible():
             return
 
@@ -819,38 +833,56 @@ class QVTKViewer(QtWidgets.QMainWindow, Ui_MainWindow):
         if rw is None:
             return
 
-        # Get latest synthetic point for the stylus
-        point = self.fakeTracker.get_point()
-        x, y, z = point
+    # Get full fake stylus pose (pivot-like transform)
+        sty_mat = self.fakeTracker.get_stylus_matrix()
 
-        # ---- Stylus transform (moves a lot) ----
-        sty_mat = np.eye(4)
-        sty_mat[0:3, 3] = [x, y, z]
-
-        # ---- Camera transform (also moves, but smaller + offset) ----
-        cam_x = x * 0.3 + 50.0   # scaled + shifted
-        cam_y = y * 0.3 - 50.0
-        cam_z = z * 0.2 + 150.0
-
-
+    # Keep camera fixed for pivot testing
         cam_mat = np.eye(4)
-        cam_mat[0:3, 3] = [cam_x, cam_y, cam_z]
+        cam_mat[0:3, 3] = [0.0, 0.0, 0.0]
 
-        # Convert to VTK 4x4 format
+    # Convert to VTK 4x4 format
         sty_mat_16 = np.reshape(sty_mat, 16)
         cam_mat_16 = np.reshape(cam_mat, 16)
 
-        # Feed into the same transforms the real tracker would use
+        if self.collectPivotCalData and not np.isnan(np.sum(sty_mat_16) + np.sum(cam_mat_16)):
+            self.pivotCalArray.InsertNextTuple(sty_mat_16)
+
+            count = self.pivotCalArray.GetNumberOfTuples()
+            if count == 1:
+                print("First fake-tracker pivot sample collected.")
+            if count % 10 == 0:
+                print("Fake-tracker pivot samples collected so far:", count)
+
+    # Feed into the same transforms the real tracker would use
         self.styTransform.SetMatrix(sty_mat_16)
         self.camTransform.SetMatrix(cam_mat_16)
 
-        # Update tip transform chain
+    # Update tip transform chain
         self.tipTransform.Update()
 
-        # Update GUI LCDs (this reads both cam & stylus transforms)
+    # if testing HE calibration, update transform of overlayed sphere
+        if self.showHETest:
+
+            tipMat = self.tipTransform.GetMatrix()
+            pt = np.ones((4, 1))
+            pt[0, 0] = tipMat.GetElement(0, 3)
+            pt[1, 0] = tipMat.GetElement(1, 3)
+            pt[2, 0] = tipMat.GetElement(2, 3)
+            camPt = np.linalg.inv(self.extMatHE) @ pt
+
+            self.testTransform.Update()
+
+            m = self.testSphereActor.GetUserTransform().GetMatrix()
+            mx = m.GetElement(0, 3)
+            my = m.GetElement(1, 3)
+            mz = m.GetElement(2, 3)
+
+            self.overlay.vtk_overlay_window.foreground_renderer.ResetCameraClippingRange()
+            self.overlay.vtk_overlay_window.GetRenderWindow().Render()
+
+    # Update GUI LCDs
         self.updateTrackingPositions()
 
-        # Redraw VTK view so any actors tied to these transforms move
         self.ren.ResetCameraClippingRange()
         self.qvtkwin.GetRenderWindow().Render()
 
@@ -954,6 +986,8 @@ class QVTKViewer(QtWidgets.QMainWindow, Ui_MainWindow):
     
     def doPivotCal(self):
         """Sets parameters and calls minimizer function for pivot calibration"""
+        print("Entered doPivotCal()")
+        print("Samples available for pivot solve:", self.pivotCalArray.GetNumberOfTuples())
         self.pivotCalMat = np.eye(4)
         
         self.minimizer.SetFunction(self.minimizerFunc)
@@ -969,21 +1003,42 @@ class QVTKViewer(QtWidgets.QMainWindow, Ui_MainWindow):
 
         self.minimizer.Minimize()
         minimum = self.minimizer.GetFunctionValue()
+        
+        print("Pivot minimization finished.")
+        print("Pivot residual / minimum error:", minimum)
 
         self.pivotCalMat[0, 3] = self.minimizer.GetParameterValue("x")
         self.pivotCalMat[1, 3] = self.minimizer.GetParameterValue("y")
         self.pivotCalMat[2, 3] = self.minimizer.GetParameterValue("z")
+        
+        print("Computed pivot calibration matrix:")
+        print(self.pivotCalMat)
+        print(
+        "Computed pivot offset [x, y, z]:",
+        self.pivotCalMat[0, 3],
+        self.pivotCalMat[1, 3],
+        self.pivotCalMat[2, 3]
+    )
 
         self.pivotLcd.display(minimum)
         self.loadedPivotCal.SetMatrix(np.reshape(self.pivotCalMat, 16))
+        
+        print("Loaded pivot calibration transform updated.")
 
     def applyPivotCal(self):
         """
         Applies pivot calibration to the stylus transform and creates the VTK stylus actor.
         Called either after a live pivot calibration or when loading from an XML file.
         """
+        print("Applying pivot calibration...")
+        print("Loaded pivot calibration matrix before apply:")
+        print(np.array(self.loadedPivotCal.GetMatrix()))
+        
         # Copy loaded pivot transform into the applied one
         self.appliedPivotCal.SetMatrix(self.loadedPivotCal.GetMatrix())
+        
+        print("Applied pivot calibration matrix:")
+        print(np.array(self.appliedPivotCal.GetMatrix()))
 
         # Create the stylus visual in the VTK scene (mode 2 = calibrated stylus)
         self.createStylusActor(2)
@@ -992,23 +1047,39 @@ class QVTKViewer(QtWidgets.QMainWindow, Ui_MainWindow):
         self._pivot_ok = True
         self.updateWorkflowStatus()
         self.log("Pivot calibration applied.")
+        print("Applied pivot calibration matrix:")
+        print(np.array(self.appliedPivotCal.GetMatrix()))
 
 
     def handlePivotToggle(self):
         """Handles toggle for pivot calibration data collection"""
+        print("handlePivotToggle() called")
+        print("Tracker initialized:", self.isTrackerInitialized)
+        
         if self.isTrackerInitialized:
             if self.pivotToggle.isChecked():
+                print("Pivot collection started.")
+                print("Existing pivot samples before reset:", self.pivotCalArray.GetNumberOfTuples())
+
                 self.pivotCalArray.Initialize()
                 self.pivotCalArray.SetNumberOfTuples(0)
                 self.collectPivotCalData = True
                 self.savePivotButton.setEnabled(False)
                 self.applyPivotButton.setEnabled(False)
+                print("Pivot sample buffer reset.")
+                print("collectPivotCalData =", self.collectPivotCalData)
+            
             else:
+                print("Pivot collection stopped.")
                 self.collectPivotCalData = False
+                print("collectPivotCalData =", self.collectPivotCalData)
+                print("Collected pivot samples:", self.pivotCalArray.GetNumberOfTuples())
+                print("Running pivot calibration now...")
                 self.doPivotCal()
                 self.savePivotButton.setEnabled(True)
                 self.applyPivotButton.setEnabled(True)
         else:
+            print("Tracker not initialized. Pivot collection not started.")
             self.pivotToggle.setChecked(False)
     
     def savePivotCal(self):
@@ -1160,7 +1231,7 @@ class QVTKViewer(QtWidgets.QMainWindow, Ui_MainWindow):
 
         # Displays and saves images with centroid reprojection
         output_path = f"{frames_dir_str}/output"
-        os.mkdir(output_path)
+        os.makedirs(output_path, exist_ok=True)
         for i in range(len(px)):
             try:
                 img = cv2.imread(f"{frames_dir_str}/capture_{i+1}.png")
@@ -1171,8 +1242,6 @@ class QVTKViewer(QtWidgets.QMainWindow, Ui_MainWindow):
                     pxx = np.uint16(np.round(px[i][0, 0]))
                     pxy = np.uint16(np.round(px[i][1, 0]))
                     cv2.circle(img, (pxx, pxy), 1, (0, 255, 255), 2)
-                    cv2.imshow("pixel error image", img)
-                    cv2.waitKey(0)
                     cv2.imwrite(f"{output_path}/reprojection_{i+1}.png", img)
             except:
                 print("could not draw pixel onto image")
