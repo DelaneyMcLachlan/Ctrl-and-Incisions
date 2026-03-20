@@ -76,7 +76,7 @@ class NavigationPage(QWidget):
         """)
 
         top_title = QLabel("Ultrasound Sequence Menu  ")
-        top_title.setStyleSheet(f"color:{NAVY}; font-size:11pt; font-weight:600;")
+        top_title.setStyleSheet(f"color:{NAVY}; font-size:11pt; font-weight:600; background-color: none;")
         top_title.setContentsMargins(10, 0, 0, 0)
 
         top_bar.addWidget(self.btn_back)
@@ -94,20 +94,15 @@ class NavigationPage(QWidget):
 
         self.btn_config = make_nav_button("Configure Hardware")
         self.btn_record = make_nav_button("Record Sequence")
-        self.btn_recon  = make_nav_button("Perform Volume Reconstruction")
-        self.btn_view3d = make_nav_button("View 3D Reconstruction")
-
-        # self.btn_config.clicked.connect(self.open_config_editor)
-        # self.btn_record.clicked.connect(self.open_record_page)
-        # self.btn_view3d.clicked.connect(self.open_volume_viewer)    
-
+        # self.btn_recon  = make_nav_button("Perform Volume Reconstruction")
+        self.btn_view3d = make_nav_button("View 3D Reconstruction")  
 
         center_wrapper.addWidget(self.btn_config)
         center_wrapper.addSpacing(15)
         center_wrapper.addWidget(self.btn_record)
         center_wrapper.addSpacing(15)
-        center_wrapper.addWidget(self.btn_recon)
-        center_wrapper.addSpacing(15)
+        # center_wrapper.addWidget(self.btn_recon)
+        # center_wrapper.addSpacing(15)
         center_wrapper.addWidget(self.btn_view3d)
 
         center_wrapper.addItem(QSpacerItem(20, 120, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding))

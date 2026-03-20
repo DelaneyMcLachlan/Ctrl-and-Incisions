@@ -9,6 +9,17 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, pyqtSignal, QObject
 from PyQt6.QtGui import QFont, QColor
 
+# ── Theme Colors ──────────────────────────────────────────────────────────────
+BG_LIGHT     = "#F0F2F5"
+PANEL_WHITE  = "#FFFFFF"
+NAVY         = "#132B50"
+ACCENT       = "#3A66B7"
+ACCENT_HOVER = "#4A7DE0"
+BORDER_LIGHT = "#D1D5DB"
+MUTED_TEXT   = "#64748B"
+ERROR_RED    = "#EF4444"
+SUCCESS_GREEN= "#22C55E"
+
 DEFAULT_EXE    = r"C:\PlusToolkit\PlusApp-2.8.0.20190617-Win64\bin\PlusServer.exe"
 DEFAULT_CONFIG = r"C:\PlusToolkit\PlusApp-2.8.0.20190617-Win64\config\PlusDeviceSet_Server_NDIAurora.xml"
 
@@ -27,166 +38,188 @@ class PlusServerLauncher(QMainWindow):
         self.init_ui()
 
     def init_ui(self):
-        self.setWindowTitle("PlusServer Launcher")
-        self.resize(800, 600)
+        self.setWindowTitle("Sequence Recorder")
+        self.resize(800, 650)
+        self.setStyleSheet(f"QMainWindow {{ background-color: {BG_LIGHT}; }}")
 
         central = QWidget()
         self.setCentralWidget(central)
         layout = QVBoxLayout(central)
+        layout.setSpacing(15)
+        layout.setContentsMargins(20, 20, 20, 20)
 
+        # ── Navigation ────────────────────────────────────────────────────────
         nav_bar = QHBoxLayout()
-        self.btn_back = QPushButton("← Back to Menu")
-        self.btn_back.setFixedWidth(120)
-        self.btn_back.setStyleSheet("""
-            QPushButton {
-                background-color: #333; color: white; border-radius: 4px; padding: 5px; margin: 5px;
-            }
-            QPushButton:hover { background-color: #444; }
+        self.btn_back = QPushButton("←  Back to Menu")
+        self.btn_back.setFixedWidth(140)
+        self.btn_back.setFixedHeight(36)
+        self.btn_back.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {PANEL_WHITE}; color: {NAVY}; border-radius: 10px; 
+                font-weight: bold; border: 1px solid {BORDER_LIGHT};
+            }}
+            QPushButton:hover {{ background-color: {BG_LIGHT}; }}
         """)
         nav_bar.addWidget(self.btn_back)
         nav_bar.addStretch()
         layout.addLayout(nav_bar)
-        layout.setSpacing(8)
-        layout.setContentsMargins(12, 12, 12, 12)
 
-        # ── File path group ──────────────────────────────────────────────────
-        file_group = QGroupBox("Configuration")
-        file_group.setStyleSheet("""
-            QGroupBox {
-                color: #888; border: 1px solid #3c3c3c; border-radius: 5px;
-                margin-top: 8px; font-family: Consolas; font-size: 10px;
-                letter-spacing: 1px;
-            }
-            QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 4px; }
+        # ── Configuration Group ───────────────────────────────────────────────
+        file_group = QGroupBox("Configuration and System Overview")
+        file_group.setStyleSheet(f"""
+            QGroupBox {{
+                background-color: {PANEL_WHITE};
+                color: {NAVY}; border: 1px solid {BORDER_LIGHT}; border-radius: 12px;
+                margin-top: 5px; padding-top: 0px; font-weight: bold; font-size: 12px;
+            }}
+            QGroupBox::title {{ subcontrol-origin: margin; left: 15px; padding: 0 5px; }}
         """)
+        
         file_layout = QFormLayout(file_group)
-        file_layout.setSpacing(6)
-        file_layout.setContentsMargins(10, 14, 10, 10)
+        file_layout.setSpacing(12)
+        file_layout.setContentsMargins(15, 20, 15, 15)
 
-        input_style = """
-            QLineEdit {
-                background: #1e1e1e; color: #d4d4d4; border: 1px solid #3c3c3c;
-                border-radius: 4px; padding: 4px 8px;
-                font-family: Consolas; font-size: 11px;
-            }
-            QLineEdit:focus { border-color: #0e7490; }
+        # ── New Educational Text ──
+        description_text = QLabel(
+            "The Sequence Recorder initializes a background process that executes a Bash-style "
+            "command to launch the PlusServer executable. This server manages the data stream "
+            "and records the sequence to your local disk.\n\n"
+            "IMPORTANT: The Config File must be customized to match your specific hardware "
+            "setup (e.g., Tracker type, COM ports, and Calibration matrices) to ensure "
+            "accurate data capture."
+        )
+        description_text.setWordWrap(True)
+        description_text.setStyleSheet(f"""
+            color: {MUTED_TEXT}; 
+            font-size: 11px; 
+            font-weight: 400; 
+            line-height: 14px; 
+            padding-bottom: 10px;
+            border-bottom: 1px solid {BG_LIGHT};
+        """)
+        # Add the description at the very top of the form
+        file_layout.addRow(description_text)
+
+        input_style = f"""
+            QLineEdit {{
+                background: {BG_LIGHT}; color: {NAVY}; border: 1px solid {BORDER_LIGHT};
+                border-radius: 6px; padding: 6px 10px; font-family: 'Segoe UI'; font-size: 12px;
+            }}
+            QLineEdit:focus {{ border-color: {ACCENT}; }}
         """
-        browse_style = """
-            QPushButton {
-                background-color: #37474f; color: white; border-radius: 4px;
-                font-size: 11px; padding: 4px 10px;
-            }
-            QPushButton:hover { background-color: #455a64; }
+        browse_style = f"""
+            QPushButton {{
+                background-color: {MUTED_TEXT}; color: white; border-radius: 6px;
+                font-size: 11px; font-weight: bold; padding: 6px 12px; border: none;
+            }}
+            QPushButton:hover {{ background-color: #475569; }}
         """
-        label_style = "color: #888; font-family: Consolas; font-size: 10px; letter-spacing: 1px;"
+        label_style = f"color: {NAVY}; font-weight: 600; font-size: 11px; background: transparent; border: none;"
 
         # PlusServer.exe row
-        exe_row = QWidget()
-        exe_layout = QHBoxLayout(exe_row)
-        exe_layout.setContentsMargins(0, 0, 0, 0)
-        exe_layout.setSpacing(6)
         self.exe_input = QLineEdit(DEFAULT_EXE)
         self.exe_input.setStyleSheet(input_style)
         exe_browse = QPushButton("Browse")
-        exe_browse.setFixedWidth(70)
+        exe_browse.setFixedWidth(80)
         exe_browse.setStyleSheet(browse_style)
         exe_browse.clicked.connect(self._browse_exe)
-        exe_layout.addWidget(self.exe_input)
-        exe_layout.addWidget(exe_browse)
+        
+        exe_row = QHBoxLayout()
+        exe_row.addWidget(self.exe_input)
+        exe_row.addWidget(exe_browse)
+        exe_row_w = QWidget()
+        exe_row_w.setLayout(exe_row)
+        exe_row_w.setStyleSheet("background: transparent; border: none;")
+
         exe_label = QLabel("PlusServer.exe")
         exe_label.setStyleSheet(label_style)
-        file_layout.addRow(exe_label, exe_row)
+        file_layout.addRow(exe_label, exe_row_w)
 
         # Config XML row
-        cfg_row = QWidget()
-        cfg_layout = QHBoxLayout(cfg_row)
-        cfg_layout.setContentsMargins(0, 0, 0, 0)
-        cfg_layout.setSpacing(6)
         self.config_input = QLineEdit(DEFAULT_CONFIG)
         self.config_input.setStyleSheet(input_style)
         cfg_browse = QPushButton("Browse")
-        cfg_browse.setFixedWidth(70)
+        cfg_browse.setFixedWidth(80)
         cfg_browse.setStyleSheet(browse_style)
         cfg_browse.clicked.connect(self._browse_config)
-        cfg_layout.addWidget(self.config_input)
-        cfg_layout.addWidget(cfg_browse)
+
+        cfg_row = QHBoxLayout()
+        cfg_row.addWidget(self.config_input)
+        cfg_row.addWidget(cfg_browse)
+        cfg_row_w = QWidget()
+        cfg_row_w.setLayout(cfg_row)
+        cfg_row_w.setStyleSheet("background: transparent; border: none;")
+
         cfg_label = QLabel("Config File")
         cfg_label.setStyleSheet(label_style)
-        file_layout.addRow(cfg_label, cfg_row)
+        file_layout.addRow(cfg_label, cfg_row_w)
 
         layout.addWidget(file_group)
 
         # ── Status label ─────────────────────────────────────────────────────
-        self.status_label = QLabel("PlusServer not running.")
+        self.status_label = QLabel("PlusServer not running")
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.status_label.setStyleSheet("color: #e05555; font-weight: bold; font-size: 13px;")
+        self.status_label.setStyleSheet(f"color: {ERROR_RED}; font-weight: 800; font-size: 14px; background: transparent;")
         layout.addWidget(self.status_label)
 
         # ── Buttons ──────────────────────────────────────────────────────────
         btn_layout = QHBoxLayout()
+        btn_layout.setSpacing(10)
 
-        self.start_btn = QPushButton("▶  Start PlusServer")
-        self.start_btn.setFixedHeight(36)
-        self.start_btn.setStyleSheet("""
-            QPushButton { background-color: #2e7d32; color: white; border-radius: 5px; font-size: 13px; }
-            QPushButton:hover { background-color: #388e3c; }
-            QPushButton:disabled { background-color: #555; color: #999; }
+        self.start_btn = QPushButton("Start Recording")
+        self.start_btn.setFixedHeight(40)
+        self.start_btn.setStyleSheet(f"""
+            QPushButton {{ background-color: {ACCENT}; color: white; border-radius: 8px; font-weight: bold; font-size: 13px; border: none; }}
+            QPushButton:hover {{ background-color: {ACCENT_HOVER}; }}
+            QPushButton:disabled {{ background-color: {BORDER_LIGHT}; color: {MUTED_TEXT}; }}
         """)
         self.start_btn.clicked.connect(self.start_server)
 
-        self.stop_btn = QPushButton("■  Stop PlusServer")
-        self.stop_btn.setFixedHeight(36)
+        self.stop_btn = QPushButton("Stop Recording")
+        self.stop_btn.setFixedHeight(40)
         self.stop_btn.setEnabled(False)
-        self.stop_btn.setStyleSheet("""
-            QPushButton { background-color: #c62828; color: white; border-radius: 5px; font-size: 13px; }
-            QPushButton:hover { background-color: #d32f2f; }
-            QPushButton:disabled { background-color: #555; color: #999; }
+        self.stop_btn.setStyleSheet(f"""
+            QPushButton {{ background-color: {ERROR_RED}; color: white; border-radius: 8px; font-weight: bold; font-size: 13px; border: none; }}
+            QPushButton:hover {{ background-color: #DC2626; }}
+            QPushButton:disabled {{ background-color: {BORDER_LIGHT}; color: {MUTED_TEXT}; }}
         """)
         self.stop_btn.clicked.connect(self.stop_server)
 
-        self.clear_btn = QPushButton("🗑  Clear Log")
-        self.clear_btn.setFixedHeight(36)
-        self.clear_btn.setStyleSheet("""
-            QPushButton { background-color: #37474f; color: white; border-radius: 5px; font-size: 13px; }
-            QPushButton:hover { background-color: #455a64; }
+        self.clear_btn = QPushButton("Clear Log")
+        self.clear_btn.setFixedHeight(40)
+        self.clear_btn.setStyleSheet(f"""
+            QPushButton {{ background-color: {PANEL_WHITE}; color: {NAVY}; border-radius: 8px; font-weight: bold; border: 1px solid {BORDER_LIGHT}; }}
+            QPushButton:hover {{ background-color: {BG_LIGHT}; }}
         """)
         self.clear_btn.clicked.connect(self.clear_log)
 
-        btn_layout.addWidget(self.start_btn)
-        btn_layout.addWidget(self.stop_btn)
-        btn_layout.addStretch()
-        btn_layout.addWidget(self.clear_btn)
+        btn_layout.addWidget(self.start_btn, 2)
+        btn_layout.addWidget(self.stop_btn, 2)
+        btn_layout.addStretch(1)
+        btn_layout.addWidget(self.clear_btn, 1)
         layout.addLayout(btn_layout)
 
         # ── Log terminal ─────────────────────────────────────────────────────
         self.log_box = QTextEdit()
         self.log_box.setReadOnly(True)
-        self.log_box.setFont(QFont("Courier New", 9))
-        self.log_box.setStyleSheet("""
-            QTextEdit {
-                background-color: #1e1e1e; color: #d4d4d4;
-                border: 1px solid #444; border-radius: 4px; padding: 6px;
-            }
+        self.log_box.setFont(QFont("Consolas", 10))
+        self.log_box.setStyleSheet(f"""
+            QTextEdit {{
+                background-color: {PANEL_WHITE}; color: {NAVY};
+                border: 1px solid {BORDER_LIGHT}; border-radius: 12px; padding: 12px;
+            }}
         """)
         layout.addWidget(self.log_box)
-
-        self.setStyleSheet("QMainWindow { background-color: #2b2b2b; } QWidget { background-color: #2b2b2b; }")
 
     # ── File browse helpers ───────────────────────────────────────────────────
 
     def _browse_exe(self):
-        path, _ = QFileDialog.getOpenFileName(
-            self, "Select PlusServer.exe", "", "Executable (*.exe)"
-        )
-        if path:
-            self.exe_input.setText(path)
+        path, _ = QFileDialog.getOpenFileName(self, "Select PlusServer.exe", "", "Executable (*.exe)")
+        if path: self.exe_input.setText(path)
 
     def _browse_config(self):
-        path, _ = QFileDialog.getOpenFileName(
-            self, "Select PlusServer Config", "", "XML Files (*.xml)"
-        )
-        if path:
-            self.config_input.setText(path)
+        path, _ = QFileDialog.getOpenFileName(self, "Select PlusServer Config", "", "XML Files (*.xml)")
+        if path: self.config_input.setText(path)
 
     # ── Server control ────────────────────────────────────────────────────────
 
@@ -195,8 +228,8 @@ class PlusServerLauncher(QMainWindow):
         config = self.config_input.text().strip()
 
         if not exe or not config:
-            self.status_label.setText("Please set both paths before starting.")
-            self.status_label.setStyleSheet("color: #ffa726; font-weight: bold; font-size: 13px;")
+            self.status_label.setText("Set paths before starting")
+            self.status_label.setStyleSheet(f"color: {ACCENT}; font-weight: 800; font-size: 14px;")
             return
 
         if self.process is None:
@@ -205,8 +238,8 @@ class PlusServerLauncher(QMainWindow):
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE
             )
-            self.status_label.setText("PlusServer running...")
-            self.status_label.setStyleSheet("color: #66bb6a; font-weight: bold; font-size: 13px;")
+            self.status_label.setText("PlusServer running")
+            self.status_label.setStyleSheet(f"color: {SUCCESS_GREEN}; font-weight: 800; font-size: 14px;")
             self.start_btn.setEnabled(False)
             self.stop_btn.setEnabled(True)
             self.append_log(f"--- PlusServer started ---\nEXE:    {exe}\nCONFIG: {config}\n\n")
@@ -219,11 +252,11 @@ class PlusServerLauncher(QMainWindow):
         if self.process:
             self.process.terminate()
             self.process = None
-            self.status_label.setText("PlusServer stopped.")
-            self.status_label.setStyleSheet("color: #e05555; font-weight: bold; font-size: 13px;")
+            self.status_label.setText("PlusServer stopped")
+            self.status_label.setStyleSheet(f"color: {ERROR_RED}; font-weight: 800; font-size: 14px;")
             self.start_btn.setEnabled(True)
             self.stop_btn.setEnabled(False)
-            self.append_log("--- PlusServer stopped ---\n")
+            self.append_log("\n--- PlusServer stopped ---\n")
 
     def read_stream(self, stream):
         for line in iter(stream.readline, b''):
@@ -231,18 +264,16 @@ class PlusServerLauncher(QMainWindow):
 
     def append_log(self, text):
         if "|ERROR|" in text:
-            self.log_box.setTextColor(QColor("#ef5350"))
+            self.log_box.setTextColor(QColor(ERROR_RED))
         elif "|WARNING|" in text:
-            self.log_box.setTextColor(QColor("#ffa726"))
+            self.log_box.setTextColor(QColor("#B45309")) # Amber/Orange
         elif "---" in text:
-            self.log_box.setTextColor(QColor("#64b5f6"))
+            self.log_box.setTextColor(QColor(ACCENT))
         else:
-            self.log_box.setTextColor(QColor("#d4d4d4"))
+            self.log_box.setTextColor(QColor(NAVY))
 
         self.log_box.insertPlainText(text)
-        self.log_box.verticalScrollBar().setValue(
-            self.log_box.verticalScrollBar().maximum()
-        )
+        self.log_box.verticalScrollBar().setValue(self.log_box.verticalScrollBar().maximum())
 
     def clear_log(self):
         self.log_box.clear()
@@ -254,6 +285,7 @@ class PlusServerLauncher(QMainWindow):
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
+    app.setStyle("Fusion")
     window = PlusServerLauncher()
     window.show()
     sys.exit(app.exec())
