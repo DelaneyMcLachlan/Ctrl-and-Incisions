@@ -348,13 +348,83 @@ class TrackedUltrasoundViewer(QWidget):
         if not self.prop or not self.volume: return
         smin, smax = self.volume.GetMapper().GetInput().GetScalarRange()
         func = vtk.vtkPiecewiseFunction()
-        if preset == "Ultrasound - Soft":
+        # Detect HU scan automatically
+        isHU = (smin < -500 and smax > 1500)
+
+        # -------------------------
+        # HU-BASED PRESETS (Slicer)
+        # -------------------------
+        if preset == "CT - Bone" and isHU:
+            # SlicerBone: hard bone = +700–3000
+            func.AddPoint(-1024, 0.00)   # air
+            func.AddPoint(  150, 0.00)   # soft tissue cutoff
+            func.AddPoint(  300, 0.10)   # trabecular bone
+            func.AddPoint(  700, 0.40)   # cortical start
+            func.AddPoint( 1200, 0.80)   # dense cortical
+            func.AddPoint( 3000, 1.00)
+        
+        elif preset == "CT - Soft Tissue" and isHU:
+            func.AddPoint(-1024, 0.00)
+            func.AddPoint(  -200, 0.00)
+            func.AddPoint(    50, 0.15)
+            func.AddPoint(   300, 0.50)
+            func.AddPoint(  1000, 1.00)
+
+        elif preset == "CT - Air" and isHU:
+            func.AddPoint(-1024, 1.00)
+            func.AddPoint(  -900, 0.80)
+            func.AddPoint(  -700, 0.50)
+            func.AddPoint(   300, 0.00)
+            func.AddPoint(  1500, 0.00)
+
+        elif preset == "CT - Chest" and isHU:
+            func.AddPoint(-1024, 0.00)
+            func.AddPoint(  -700, 0.20)
+            func.AddPoint(  -100, 0.50)
+            func.AddPoint(   300, 0.70)
+            func.AddPoint(  2000, 1.00)
+
+        elif preset == "MRI - Brain" and isHU:
+            # MRI-like appearance (not true HU)
+            func.AddPoint(smin, 0.00)
+            func.AddPoint(smin + (smax - smin)*0.20, 0.15)
+            func.AddPoint(smin + (smax - smin)*0.50, 0.35)
+            func.AddPoint(smin + (smax - smin)*0.85, 0.80)
+            func.AddPoint(smax, 1.00)
+
+        elif preset == "MRI - Bone" and isHU:
+            func.AddPoint(-1024, 0.00)
+            func.AddPoint(  100, 0.00)
+            func.AddPoint(  400, 0.10)
+            func.AddPoint( 1000, 0.50)
+            func.AddPoint( 2500, 1.00)
+
+        # ----------------------------------------------
+        # Generic presets for NON-HU (0–255 volumes)
+        # ----------------------------------------------
+        elif preset == "Ultrasound - Soft":
             func.AddPoint(smin, 0.0)
+            func.AddPoint(smin + (smax-smin)*0.3, 0.1)
             func.AddPoint(smin + (smax-smin)*0.6, 0.3)
             func.AddPoint(smax, 1.0)
-        else:
+
+        elif preset == "Ultrasound - High Contrast":
             func.AddPoint(smin, 0.0)
+            func.AddPoint(smin + (smax-smin)*0.4, 0.0)
+            func.AddPoint(smin + (smax-smin)*0.6, 0.5)
             func.AddPoint(smax, 1.0)
+
+        elif preset == "Bright Structures Only":
+            func.AddPoint(smin, 0.0)
+            func.AddPoint(smin + (smax-smin)*0.8, 0.0)
+            func.AddPoint(smax, 1.0)
+
+        elif preset == "Hide Background":
+            func.AddPoint(smin, 0.0)
+            func.AddPoint(smin + (smax-smin)*0.2, 0.0)
+            func.AddPoint(smin + (smax-smin)*0.5, 0.3)
+            func.AddPoint(smax, 1.0)
+
         self.prop.SetScalarOpacity(func)
         self.render_window.Render()
 
