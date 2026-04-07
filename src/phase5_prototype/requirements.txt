@@ -1,0 +1,9 @@
+pyside6
+numpy
+scikit-surgerycore
+vtk
+scikit-surgerynditracker
+opencv-python
+opencv-contrib-python
+# Note: PLUS ToolKit is typically installed separately (see ultrasound-calibration/INSTALLATION.md)
+# If Python bindings become available: plustoolkit

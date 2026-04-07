@@ -33,7 +33,7 @@ sys.path.insert(0, str(SRC_DIR))
 
 from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 from sksurgerynditracker.nditracker import NDITracker
-from data.db import (
+from phase5_prototype.data.db import (
     init_db,
     get_or_create_device,
     start_capture_session,
